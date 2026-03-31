@@ -5,8 +5,9 @@ import { LoginResponseData } from '@/types/auth';
 
 export const authService = {
   login: async (credentials: any): Promise<ApiResponse<LoginResponseData>> => {
-    console.log(credentials,"LLLL");
-    return await apiClient.post(ENDPOINTS.AUTH.LOGIN, credentials);
+    const response = await apiClient.post(ENDPOINTS.AUTH.LOGIN, credentials);
+    // console.log(response,"response;s,s,s,s,s")
+    return response;
   },
   
   register: async (userData: any) => {

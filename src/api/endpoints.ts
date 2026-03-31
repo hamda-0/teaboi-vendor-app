@@ -1,6 +1,6 @@
 import { Constants } from '@/config/constants';
 
-export const BASE_URL = "http://192.168.100.209:3001"
+export const BASE_URL =Constants.BASE_URL
 
 
 export const ENDPOINTS = {
@@ -40,6 +40,13 @@ export const ENDPOINTS = {
     ALL: '/admin/categories/all',
   },
 
+  VENDOR_ROUTES: {
+    CREATE: '/vendor/routes',
+    ALL: '/vendor/routes/all',
+    CANCEL: (id: string) => `/vendor/routes/${id}/cancel`,
+    UPDATE: (id: string) => `/vendor/routes/${id}`,
+    DETAILS: (id: string) => `/vendor/routes/${id}`,
+  },
   ORDERS: {
     CREATE: '/user/orders',
     HISTORY: '/user/orders/history',

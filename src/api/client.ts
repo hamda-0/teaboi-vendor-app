@@ -17,7 +17,7 @@ apiClient.interceptors.request.use(
   (config) => {
     try {
       const { useAuthStore } = require('@store/useAuthStore');
-      const token = useAuthStore.getState().token;
+      const token = useAuthStore.getState().token; 
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -27,6 +27,8 @@ apiClient.interceptors.request.use(
           url: config.url,
           method: config.method,
           params: config.params,
+          base:config.baseURL,
+          data:config.data
         });
       }
 
@@ -47,7 +49,21 @@ apiClient.interceptors.response.use(
   (response) => {
     const apiRes = response.data;
 
+
+    // Check if the response data itself contains an error message or 401 status
     if (apiRes.error || (apiRes.statusCode && apiRes.statusCode >= 400)) {
+      const isUnauthorized = 
+        apiRes.statusCode === 401 ;
+      if (isUnauthorized) {
+        try {
+          const { useAuthStore } = require('@store/useAuthStore');
+          const { navigate } = require('@navigation/navigationRef');
+          useAuthStore.getState().logout();
+          setTimeout(() => navigate('Login'), 100);
+        } catch (e) {
+          if (isDev) console.log('Logout error in interceptor:', e);
+        }
+      }
 
       if (isDev) {
         console.log('API Error:', {
@@ -66,15 +82,35 @@ apiClient.interceptors.response.use(
     return apiRes;
   },
   (error) => {
-
+    console.log(error,error.statusCode,error.response,">>>>>>>");
     if (error.response?.data) {
       const apiRes = error.response.data as ApiErrorResponse;
+      const statusCode = apiRes.statusCode || error.response.status;
+
+      // Handle 401 Unauthorized from error response
+      const isUnauthorized = 
+        statusCode === 401 || 
+        (apiRes.error && (
+          apiRes.error.toLowerCase().includes('user not found') || 
+          apiRes.error.toLowerCase().includes('unauthori')
+        ));
+
+      if (isUnauthorized) {
+        try {
+          const { useAuthStore } = require('@store/useAuthStore');
+          const { navigate } = require('@navigation/navigationRef');
+          useAuthStore.getState().logout();
+          setTimeout(() => navigate('Login'), 100);
+        } catch (e) {
+          if (isDev) console.log('Logout error in interceptor:', e);
+        }
+      }
 
       if (isDev) {
         console.log('API Error:', {
           url: error.config?.url,
           method: error.config?.method,
-          statusCode: apiRes.statusCode || error.response.status,
+          statusCode: statusCode,
           error: apiRes.error,
           requestBody: error.config?.data,
           response: apiRes,
@@ -82,7 +118,7 @@ apiClient.interceptors.response.use(
       }
 
       return Promise.reject({
-        statusCode: apiRes.statusCode || error.response.status,
+        statusCode: statusCode,
         data: apiRes.data || null,
         error: apiRes.error || error.message || 'Something went wrong',
         message: apiRes.message,

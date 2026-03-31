@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { View, StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ScrollView, ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ScrollView, ViewStyle, Image } from 'react-native';
+import { Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../../theme';
 
 interface ScreenWrapperProps {
@@ -11,6 +11,8 @@ interface ScreenWrapperProps {
   keyboardAvoiding?: boolean;
   backgroundColor?: string;
   onPress?: () => void;
+  edges?: Edge[];
+  customStyles?: ViewStyle | ViewStyle[];
 }
 
 export const ScreenWrapper = ({ 
@@ -18,19 +20,21 @@ export const ScreenWrapper = ({
   style, 
   scroll = false, 
   keyboardAvoiding = true,
-  backgroundColor = theme.colors.background 
+  customStyles,
+  backgroundColor = theme.colors.background,
+   edges = [],
 }: ScreenWrapperProps) => {
   const Container = scroll ? ScrollView : View;
-  
+  const insets =useSafeAreaInsets();
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
+    <SafeAreaView edges={edges} style={[styles.safeArea,,customStyles, { backgroundColor }]}>
       <StatusBar barStyle="dark-content" backgroundColor={backgroundColor} />
       <KeyboardAvoidingView 
         style={styles.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Container 
-          style={[styles.container, style]}
+          style={[styles.container, {paddingTop:insets.top},style]}//paddingBottom:insets.bottom,
           contentContainerStyle={scroll ? styles.scrollContent : undefined}
           showsVerticalScrollIndicator={false}
         >
@@ -54,4 +58,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
   },
+    star: {
+        position: 'absolute',
+        bottom:0
+  },
+  star7: {
+    position: 'absolute',
+    top:0,
+    right:0
+  }
 });

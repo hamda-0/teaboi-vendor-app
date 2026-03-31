@@ -36,7 +36,7 @@ export const useLogin = () => {
           );
           return;
         }
-        // setAuth(user, accessToken);@todo check token availb 
+        setAuth(user, accessToken);
       }
     },
     onError: (err: any, values) => {

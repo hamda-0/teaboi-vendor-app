@@ -12,6 +12,8 @@ import { isDev } from '@/utils/platform';
 import { Alert } from 'react-native';
 import { CompleteProfileScreen } from '@/modules/profile/screens/CompleteProfileScreen';
 import { CameraScreen } from '@/modules/profile/screens/CameraScreen';
+import { NewRouteScreen } from '@/modules/orders/screens/NewRoute';
+import { MapPickerScreen } from '@/modules/orders/screens/MapPickerScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -22,39 +24,43 @@ export const RootNavigator = () => {
       return;
     }
 
-    const sendLocation = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-
-        if (status !== 'granted') {
-          return;
-        }
-        const { coords } = await Location.getCurrentPositionAsync({});
-        await profileService.updateLocation({
-          lat: coords.latitude,
-          lng: coords.longitude,
-        });
-      } catch (error) {
-        isDev && console.log('error in location update', error);
-        Alert.alert('Error', 'Failed to send user location', [{ text: 'OK' }]);
-      }
-    };
-
-    sendLocation();
+  //   const sendLocation = async () => {
+  //     try {
+  //       const { status } = await Location.requestForegroundPermissionsAsync();
+  //       if (status !== 'granted') return;
+  //       const { coords } = await Location.getCurrentPositionAsync({});
+  //       await profileService.updateLocation({ lat: coords.latitude, lng: coords.longitude });
+  //     } catch (error) {
+  //       isDev && console.log('error in location update', error);
+  //       Alert.alert('Error', 'Failed to send user location', [{ text: 'OK' }]);
+  //     }
+  //   };
+  //   sendLocation();
   }, [token]);
   return (
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
+       
         {token ? (
-          <Stack.Screen name="Main" component={MainNavigator} />
+          <>
+            <Stack.Screen name="Main" component={MainNavigator} />
+            <Stack.Screen 
+              name="CreateRoute" 
+              component={NewRouteScreen} 
+            />
+            <Stack.Screen 
+              name="MapPicker" 
+              component={MapPickerScreen} 
+            />
+          </>
         ) : (
           <Stack.Screen name="Auth" component={AuthNavigator} />
         )} 
-        <Stack.Screen 
-        name="Camera" 
-        component={CameraScreen} 
-        options={{ presentation: 'fullScreenModal', animation: 'fade' }}
-      />
+           <Stack.Screen 
+              name="Camera" 
+              component={CameraScreen} 
+              options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+            />
       </Stack.Navigator>
     </NavigationContainer>
   );

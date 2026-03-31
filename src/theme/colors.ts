@@ -6,7 +6,7 @@ export const colors = {
   
   background: '#FFFFFF',
   surface: '#F9FAFB', // Gray 50
-  
+  grey: '#94A3B8',
   text: {
     primary: '#111827', // Gray 900
     secondary: '#4B5563', // Gray 600

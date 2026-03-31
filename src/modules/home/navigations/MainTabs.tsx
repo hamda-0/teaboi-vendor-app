@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { HomeScreen } from '@modules/home/screens/HomeScreen';
-import { OrderHistoryScreen } from '@modules/orders/screens/OrderHistoryScreen';
+import { RoutesScreen } from '@modules/orders/screens/RoutesScreen';
 import { ProfileScreen } from '@modules/profile/screens/ProfileScreen';
 import { View, Text } from 'react-native';
 import { theme } from '@theme/index';
@@ -9,6 +9,7 @@ import { theme } from '@theme/index';
 const Tab = createBottomTabNavigator();
 
 import { MenuScreen } from '@modules/menu/screens/MenuScreen';
+import { Ionicons } from '@expo/vector-icons';
 
 export const MainTabs = () => {
   return (
@@ -31,20 +32,21 @@ export const MainTabs = () => {
       }}
     >
       <Tab.Screen
-        name="Map"
+        name="Home"
         component={HomeScreen}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Text style={{ fontSize: 24, opacity: focused ? 1 : 0.5 }}>🗺️</Text>
+             <Ionicons name="home-outline" size={20} color={focused ? theme.colors.primary : theme.colors.grey}/>
+
           ),
         }}
       />
       <Tab.Screen
-        name="Orders"
-        component={OrderHistoryScreen}
+        name="Routes"
+        component={RoutesScreen}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Text style={{ fontSize: 24, opacity: focused ? 1 : 0.5 }}>📋</Text>
+          <Ionicons name="git-network-outline" size={20} color={focused ? theme.colors.primary : theme.colors.grey} />
           ),
         }}
       />
@@ -53,7 +55,7 @@ export const MainTabs = () => {
         component={MenuScreen}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Text style={{ fontSize: 24, opacity: focused ? 1 : 0.5 }}>🍽️</Text>
+          <Ionicons name="list-outline" size={20} color={focused ? theme.colors.primary : theme.colors.grey} />
           ),
         }}
       />
@@ -62,7 +64,7 @@ export const MainTabs = () => {
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Text style={{ fontSize: 24, opacity: focused ? 1 : 0.5 }}>👤</Text>
+          <Ionicons name="settings-outline" size={20} color={focused ? theme.colors.primary : theme.colors.grey} />
           ),
         }}
       />
