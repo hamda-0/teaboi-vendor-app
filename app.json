@@ -97,7 +97,11 @@
         }
       ],
       [
-        "react-native-maps"
+        "react-native-maps",
+        {
+          "iosGoogleMapsApiKey": "AIzaSyBmInsBLw3LufW_nUALGUdhph-E_nwAPaY",
+          "androidGoogleMapsApiKey": "AIzaSyBmInsBLw3LufW_nUALGUdhph-E_nwAPaY"
+        }
       ],
       "@react-native-community/datetimepicker"
     ],

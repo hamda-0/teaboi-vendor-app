@@ -25,7 +25,9 @@ type RootStackParamList = {
     editingRoute?: VendorRouteDetails;
   };
   MapPicker: {
-    onGoBack: (data: { selectedPath: RoutePoint[]; selectedZone: RoutePoint[] }) => void;
+    initialStartPoint?: RoutePoint | null;
+    initialEndPoint?: RoutePoint | null;
+    onGoBack: (data: { selectedPath: RoutePoint[] }) => void;
   };
 };
 export const NewRouteScreen = () => {
@@ -38,7 +40,6 @@ export const NewRouteScreen = () => {
   
   const [startPoint, setStartPoint] = useState<RoutePoint | null>(null);
   const [endPoint, setEndPoint] = useState<RoutePoint | null>(null);
-  const [zonePoints, setZonePoints] = useState<RoutePoint[]>([]);
   
   const { mutateAsync: updateRoute } = useUpdateRoute();
   const editingId = route.params?.editingRoute?.id;
@@ -75,26 +76,12 @@ export const NewRouteScreen = () => {
         setEndPoint(p2 as RoutePoint);
         // console.log('Mapped StartPoint:', p1);
       }
-      
-      const zones = details.routeZones ;
-      if (zones?.[0]) {
-        const rawCoords = zones[0].zone ;
-        if (Array.isArray(rawCoords)) {
-
-          const mappedCoords = rawCoords.map((p: any) => 
-            Array.isArray(p) ? { lat: p[0], lng: p[1] } : p
-          ) as RoutePoint[];
-          setZonePoints(mappedCoords);
-          // console.log('Mapped ZonePoints count:', mappedCoords.length);
-        }
-      }
     }
   }, [routeDetails]);
 
   const resetSelection = () => {
     setStartPoint(null);
     setEndPoint(null);
-    setZonePoints([]);
     setRouteName('');
   };
 
@@ -107,10 +94,6 @@ export const NewRouteScreen = () => {
       Alert.alert('Error', 'Please select both start and end points for the route path');
       return;
     }
-    if (zonePoints.length < 3) {
-      Alert.alert('Error', 'Please select at least 3 points for the zone area');
-      return;
-    }
 
     setLoading(true);
     try {
@@ -119,19 +102,14 @@ export const NewRouteScreen = () => {
         startTime,
         endTime,
         routePath: [startPoint, endPoint],
-        zones: [
-          {
-            coordinates: zonePoints,
-          },
-        ],
       };
 
       if (isEditing && editingId) {
         await updateRoute({ id: editingId, data: payload });
         goBack();
       } else {
-        await routeService.createRoute(payload);
-        Alert.alert('Success', 'Route and Zone created successfully', [
+        await routeService.createRoute(payload as any);
+        Alert.alert('Success', 'Route created successfully', [
           { text: 'OK', onPress: () => goBack() }
         ]);
       }
@@ -209,7 +187,7 @@ export const NewRouteScreen = () => {
 
         {/* Geographic Path / Map Button */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Geographic Path & Zones</Text>
+          <Text style={styles.label}>Geographic Path</Text>
           
           <TouchableOpacity 
             style={styles.mapPickerButton} 
@@ -217,10 +195,11 @@ export const NewRouteScreen = () => {
            
               
               onPress={() => navigate('MapPicker', {
-  onGoBack: (data: { selectedPath: RoutePoint[]; selectedZone: RoutePoint[] }) => {
+  initialStartPoint: startPoint,
+  initialEndPoint: endPoint,
+  onGoBack: (data: { selectedPath: RoutePoint[] }) => {
     setStartPoint(data.selectedPath[0]);
     setEndPoint(data.selectedPath[1]);
-    setZonePoints(data.selectedZone);
   }
 })}
           >
@@ -233,7 +212,7 @@ export const NewRouteScreen = () => {
               </Text>
               <Text style={styles.mapPickerSub}>
                 {startPoint && endPoint 
-                  ? `${zonePoints.length} zone points defined` 
+                  ? `Path defined` 
                   : 'Tap to open full-screen map picker'}
               </Text>
             </View>
@@ -248,10 +227,6 @@ export const NewRouteScreen = () => {
                   Path: {startPoint?.lat?.toFixed(4)}, {startPoint?.lng?.toFixed(4)}
                   {endPoint ? ` → ${endPoint?.lat?.toFixed(4)}, ${endPoint?.lng?.toFixed(4)}` : ''}
                 </Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Ionicons name="scan-circle" size={16} color="#3B82F6" />
-                <Text style={styles.summaryText}>Zone: {zonePoints.length} points defined</Text>
               </View>
             </View>
           )}

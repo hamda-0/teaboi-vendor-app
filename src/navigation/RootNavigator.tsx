@@ -14,6 +14,7 @@ import { CompleteProfileScreen } from '@/modules/profile/screens/CompleteProfile
 import { CameraScreen } from '@/modules/profile/screens/CameraScreen';
 import { NewRouteScreen } from '@/modules/orders/screens/NewRoute';
 import { MapPickerScreen } from '@/modules/orders/screens/MapPickerScreen';
+import { LiveTrackingScreen } from '@/modules/orders/screens/LiveTrackingScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -51,6 +52,10 @@ export const RootNavigator = () => {
             <Stack.Screen 
               name="MapPicker" 
               component={MapPickerScreen} 
+            />
+            <Stack.Screen 
+              name="LiveTracking" 
+              component={LiveTrackingScreen} 
             />
           </>
         ) : (

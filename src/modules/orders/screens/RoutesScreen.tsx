@@ -14,6 +14,7 @@ import { useVendorRoutes } from '../hooks/useVendorRoutes';
 import { useCancelRoute } from '../hooks/useCancelRoute';
 import { ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { VendorRouteDetails } from '../services/routeService';
+import { socketService } from '@/services/socketService';
 
 
 
@@ -23,6 +24,8 @@ export const RoutesScreen = () => {
 
   const getStatusStyle = (status: string = 'PLANNED') => {
     switch (status?.toUpperCase()) {
+      case 'ACTIVE':
+        return { bg: '#FEF3C7', text: '#B45309', label: 'ACTIVE' };
       case 'APPROVED':
         return { bg: '#DCFCE7', text: '#166534', label: 'APPROVED' };
       case 'PLANNED':
@@ -62,7 +65,7 @@ export const RoutesScreen = () => {
       return;
     }
 
-    const routeId = route._id || route.id;
+    const routeId = route.id;
     if (!routeId) {
       Alert.alert('Error', 'Invalid route ID');
       return;
@@ -145,9 +148,9 @@ export const RoutesScreen = () => {
           routes.map((route: VendorRouteDetails, index: number) => {
             const statusStyle = getStatusStyle(route.status);
             const timeRange = formatTime(route.startTime, route.endTime);
-            const stopsCount = route.totalStops || route.zones?.length || 0;
-            const distance = route.totalDistance ? `${route.totalDistance.toFixed(1)} km` : null;
-            const routeId = route._id || route.id || `route-${index}`;
+            const stopsCount = route.routeZones?.length || 0;
+            const distance = null;
+            const routeId = route.id || `route-${index}`;
 
              return (
               <View key={routeId} style={styles.routeCard}>
@@ -182,15 +185,22 @@ export const RoutesScreen = () => {
                 {/* Actions Section */}
                 <View style={styles.actionsDivider} />
                 <View style={styles.actionsRow}>
-                  {route.status?.toUpperCase() === 'APPROVED' ? (
+                  {route.status?.toUpperCase() === 'APPROVED' || route.status?.toUpperCase() === 'INCOMPLETE' || route.status?.toUpperCase() === 'ACTIVE' ? (
                     <TouchableOpacity
-                    onPress={()=>{
-                      console.log(route);
-                      
+                    onPress={() => {
+                      // console.log('Starting route:', route.name);
+                      socketService.connect();
+                      socketService.startRoute(route.id)
+                      navigate('LiveTracking', { routeData: route });
+                      // socketService.subscribeRoute(route._id || route.id);
+                      // Alert.alert('Route Started', `Connected to route: ${route.name}`);
+                      // Here you can navigate to the Live Tracking map screen
                     }}
                     style={[styles.premiumButton, styles.startButton]}>
-                      <Ionicons name="play" size={18} color="white" />
-                      <Text style={styles.premiumButtonText}>Start Today's Route</Text>
+                      <Ionicons name={route.status?.toUpperCase() === 'ACTIVE' ? "map" : "play"} size={18} color="white" />
+                      <Text style={styles.premiumButtonText}>
+                        {route.status?.toUpperCase() === 'ACTIVE' ? "Live Tracking" : "Start Today's Route"}
+                      </Text>
                     </TouchableOpacity>
                   ) : ['PLANNED', 'REJECT', 'REJECTED'].includes(route.status?.toUpperCase() || '') ? (
                     <TouchableOpacity 

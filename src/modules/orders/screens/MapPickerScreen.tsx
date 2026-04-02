@@ -14,21 +14,24 @@ import * as Location from 'expo-location';
 import { RoutePoint } from '../services/routeService';
 import { RouteProp, useRoute } from '@react-navigation/native';
 
-type SelectionMode = 'route' | 'zone';
 type MapPickerParams = {
   MapPicker: {
-    onGoBack: (data: { selectedPath: RoutePoint[]; selectedZone: RoutePoint[] }) => void;
+    initialStartPoint?: RoutePoint | null;
+    initialEndPoint?: RoutePoint | null;
+    onGoBack: (data: { selectedPath: RoutePoint[] }) => void;
   };
 };
+
 export const MapPickerScreen = () => {
-  const [selectionMode, setSelectionMode] = useState<SelectionMode>('route');
-  const [startPoint, setStartPoint] = useState<RoutePoint | null>(null);
-  const [endPoint, setEndPoint] = useState<RoutePoint | null>(null);
-  const [zonePoints, setZonePoints] = useState<RoutePoint[]>([]);
+  const route = useRoute<RouteProp<MapPickerParams, 'MapPicker'>>();
+  const params = route.params;
+
+  const [startPoint, setStartPoint] = useState<RoutePoint | null>(params?.initialStartPoint || null);
+  const [endPoint, setEndPoint] = useState<RoutePoint | null>(params?.initialEndPoint || null);
   
   const [region, setRegion] = useState({
-    latitude: 24.8607,
-    longitude: 67.0011,
+    latitude: params?.initialStartPoint?.lat || 24.8607,
+    longitude: params?.initialStartPoint?.lng || 67.0011,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
@@ -38,32 +41,27 @@ export const MapPickerScreen = () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
 
-      let location = await Location.getCurrentPositionAsync({});
-      setRegion({
-        ...region,
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
+      if (!params?.initialStartPoint) {
+        let location = await Location.getCurrentPositionAsync({});
+        setRegion(prev => ({
+          ...prev,
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }));
+      }
     })();
   }, []);
-const route = useRoute<RouteProp<MapPickerParams, 'MapPicker'>>();
-
-
   const handleMapPress = (e: any) => {
     const coords = e.nativeEvent.coordinate;
     const point = { lat: coords.latitude, lng: coords.longitude };
     
-    if (selectionMode === 'route') {
-      if (!startPoint) {
-        setStartPoint(point);
-      } else if (!endPoint) {
-        setEndPoint(point);
-      } else {
-        setStartPoint(point);
-        setEndPoint(null);
-      }
+    if (!startPoint) {
+      setStartPoint(point);
+    } else if (!endPoint) {
+      setEndPoint(point);
     } else {
-      setZonePoints([...zonePoints, point]);
+      setStartPoint(point);
+      setEndPoint(null);
     }
   };
 
@@ -73,14 +71,9 @@ const handleConfirm = () => {
     Alert.alert('Incomplete Path', 'Please select both start and end points for your route.');
     return;
   }
-  if (zonePoints.length < 3) {
-    Alert.alert('Incomplete Zone', 'Please define at least 3 points for your service zone.');
-    return;
-  }
 
   route.params.onGoBack({
     selectedPath: [startPoint, endPoint],
-    selectedZone: zonePoints,
   });
 
   goBack();
@@ -101,16 +94,6 @@ const handleConfirm = () => {
           {startPoint && endPoint && (
             <Polyline coordinates={[{ latitude: startPoint.lat, longitude: startPoint.lng }, { latitude: endPoint.lat, longitude: endPoint.lng }]} strokeColor="#22C55E" strokeWidth={4} />
           )}
-
-          {/* Zone */}
-          {zonePoints.map((p, i) => (
-            <Marker key={`z-${i}`} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }}>
-              <View style={styles.dot} />
-            </Marker>
-          ))}
-          {zonePoints.length > 0 && (
-            <Polygon coordinates={zonePoints.map(p => ({ latitude: p.lat, longitude: p.lng }))} strokeColor="#3B82F6" fillColor="rgba(59, 130, 246, 0.3)" strokeWidth={2} />
-          )}
         </MapView>
 
         {/* Back Button Overlay */}
@@ -118,28 +101,11 @@ const handleConfirm = () => {
           <Ionicons name="arrow-back" size={28} color="#111827" />
         </TouchableOpacity>
 
-        {/* Mode & Instructions */}
+        {/* Instructions */}
         <View style={styles.overlayTop}>
-          <View style={styles.modeToggle}>
-            <TouchableOpacity 
-              onPress={() => setSelectionMode('route')}
-              style={[styles.modeButton, selectionMode === 'route' && styles.activeModeButton]}
-            >
-              <Text style={[styles.modeText, selectionMode === 'route' && styles.activeModeText]}>PATH</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => setSelectionMode('zone')}
-              style={[styles.modeButton, selectionMode === 'zone' && styles.activeModeButton]}
-            >
-              <Text style={[styles.modeText, selectionMode === 'zone' && styles.activeModeText]}>ZONE</Text>
-            </TouchableOpacity>
-          </View>
-          
           <View style={styles.instructionCard}>
             <Text style={styles.instructionText}>
-              {selectionMode === 'route' 
-                ? (!startPoint ? 'Tap to select Start' : !endPoint ? 'Tap to select End' : 'Path selected!')
-                : (zonePoints.length < 3 ? `Tap to define Zone bounds (${zonePoints.length}/3)` : 'Zone complete!')}
+              {!startPoint ? 'Tap to select Start' : !endPoint ? 'Tap to select End' : 'Path selected!'}
             </Text>
           </View>
         </View>
@@ -149,12 +115,11 @@ const handleConfirm = () => {
           <TouchableOpacity 
             style={styles.resetButton} 
             onPress={() => {
-              if (selectionMode ==='route') { setStartPoint(null); setEndPoint(null); }
-              else setZonePoints([]);
+               setStartPoint(null); setEndPoint(null); 
             }}
           >
             <Ionicons name="refresh-outline" size={24} color="#6B7280" />
-            <Text style={styles.resetText}>Clear {selectionMode.toUpperCase()}</Text>
+            <Text style={styles.resetText}>Clear Path</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>

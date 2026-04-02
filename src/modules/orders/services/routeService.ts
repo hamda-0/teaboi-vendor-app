@@ -19,19 +19,21 @@ export interface RoutePoint {
   zone:Zone[]
 }
 export interface VendorRouteDetails {
-  id:string;
-  _id?: string;
+  id: string;
   endTime: string;
-  approvedById?:string;
-  name:string;
-  startTime:string;
-  status:"planned"|"cancelled"|"approved"|"rejected";
-  rejectionReason?:string;
+  approvedById?: string;
+  approvedAt?: string | null;   
+  rejectedAt?: string | null;   
+  vendorId?: string;             
+  createdAt?: string;            
+  updatedAt?: string;            
+  isApproved?: boolean;          
+  name: string;
+  startTime: string;
+  status:  "cancelled" | "approved" | "rejected" | "expired"|"incomplete"|"completed"|"active"|"planned";
+  rejectionReason?: string | null;
   routePath: [number, number][];
-  routeZones:routeZones[];
-  totalStops?: number;
-  zones?: any[];
-  totalDistance?: number;
+  routeZones: routeZones[];
 }
 export interface CreateRouteRequest {
   name: string;
@@ -50,11 +52,11 @@ export const routeService = {
     });
   },
   getRouteDetails: async (id: string): Promise<ApiResponse<{
-    data: VendorRouteDetails;
-    message: string;
+  data: VendorRouteDetails;
+  message: string;
   }>> => {
-    const response = await apiClient.get(ENDPOINTS.VENDOR_ROUTES.DETAILS(id));
-    return response;
+     const response = await apiClient.get(ENDPOINTS.VENDOR_ROUTES.DETAILS(id));
+     return response;
   },
   cancelRoute: async (id: string) => {
     const response = await apiClient.patch(ENDPOINTS.VENDOR_ROUTES.CANCEL(id));
