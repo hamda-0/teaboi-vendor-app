@@ -19,6 +19,7 @@ import { useUpdateRoute } from '../hooks/useUpdateRoute';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { navigate } from '@/navigation/navigationRef';
 import { useQuery } from '@tanstack/react-query';
+import { useMapStore } from '@/store/useMapStore';
 
 type RootStackParamList = {
   CreateRoute: { 
@@ -31,6 +32,7 @@ type RootStackParamList = {
   };
 };
 export const NewRouteScreen = () => {
+  const setTempData = useMapStore(state => state.setTempData);
   const route = useRoute<RouteProp<RootStackParamList, 'CreateRoute'>>();
   const [routeName, setRouteName] = useState('');
   const [startTime, setStartTime] = useState('08:00');
@@ -194,14 +196,18 @@ export const NewRouteScreen = () => {
             activeOpacity={0.7}
            
               
-              onPress={() => navigate('MapPicker', {
-  initialStartPoint: startPoint,
-  initialEndPoint: endPoint,
-  onGoBack: (data: { selectedPath: RoutePoint[] }) => {
-    setStartPoint(data.selectedPath[0]);
-    setEndPoint(data.selectedPath[1]);
-  }
-})}
+              onPress={() => {
+                setTempData({
+                  onGoBack: (data: { selectedPath: RoutePoint[] }) => {
+                    setStartPoint(data.selectedPath[0]);
+                    setEndPoint(data.selectedPath[1]);
+                  }
+                });
+                navigate('MapPicker', {
+                  initialStartPoint: startPoint,
+                  initialEndPoint: endPoint,
+                });
+              }}
           >
             <View style={styles.mapIconContainer}>
               <Ionicons name="map-outline" size={28} color="#22C55E" />
@@ -248,29 +254,6 @@ export const NewRouteScreen = () => {
         </TouchableOpacity>
       </View>
       )}
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="home-outline" size={24} color="#64748B" />
-          <Text style={styles.navLabel}>HOME</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
-          <Ionicons name="git-network-outline" size={24} color="#22C55E" />
-          <Text style={[styles.navLabel, styles.navLabelActive]}>ROUTES</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="list-outline" size={24} color="#64748B" />
-          <Text style={styles.navLabel}>ORDERS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="person-outline" size={24} color="#64748B" />
-          <Text style={styles.navLabel}>PROFILE</Text>
-        </TouchableOpacity>
-      </View>
     </ScreenWrapper>
   );
 };

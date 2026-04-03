@@ -13,15 +13,18 @@ export const useVendorRoutes = (page = 1, limit = 10) => {
     queryFn: () => routeService.getAllRoutes(page, limit),
   });
 
-  // Extracting routes based on possible API response structures
-  const rawResponse = data?.data as {
-    data?: VendorRouteDetails[];
-    pagination?: { limit: number; page: number; total: number; totalPages: number };
-    message?: string;
-  } | undefined;
+  const rawResponse = data as any;
   
-  const routes: VendorRouteDetails[] = Array.isArray(rawResponse?.data) ? rawResponse.data : [];
-  const meta = rawResponse?.pagination || { total: 0 };
+  let routes: VendorRouteDetails[] = [];
+  if (Array.isArray(rawResponse?.data)) {
+    routes = rawResponse.data;
+  } else if (Array.isArray(rawResponse?.data?.data)) {
+    routes = rawResponse.data.data;
+  } else if (Array.isArray(rawResponse)) {
+    routes = rawResponse;
+  }
+  
+  const meta = rawResponse?.pagination || rawResponse?.data?.pagination || { total: routes.length };
 
   return {
     routes,

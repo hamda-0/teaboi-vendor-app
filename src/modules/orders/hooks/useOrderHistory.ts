@@ -13,8 +13,11 @@ export const useOrderHistory = () => {
     queryFn: orderService.getOrderHistory,
   });
 
+  const rawResponse = data as any;
+  const orders = Array.isArray(rawResponse?.data) ? rawResponse.data : [];
+
   return {
-    orders: data?.data || [],
+    orders,
     isLoading,
     error,
     refetch,

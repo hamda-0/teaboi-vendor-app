@@ -13,18 +13,19 @@ import MapView, { Marker, Polyline, Polygon } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { RoutePoint } from '../services/routeService';
 import { RouteProp, useRoute } from '@react-navigation/native';
+import { useMapStore } from '@/store/useMapStore';
 
 type MapPickerParams = {
   MapPicker: {
     initialStartPoint?: RoutePoint | null;
     initialEndPoint?: RoutePoint | null;
-    onGoBack: (data: { selectedPath: RoutePoint[] }) => void;
   };
 };
 
 export const MapPickerScreen = () => {
   const route = useRoute<RouteProp<MapPickerParams, 'MapPicker'>>();
   const params = route.params;
+  const { tempData, clearTempData } = useMapStore();
 
   const [startPoint, setStartPoint] = useState<RoutePoint | null>(params?.initialStartPoint || null);
   const [endPoint, setEndPoint] = useState<RoutePoint | null>(params?.initialEndPoint || null);
@@ -65,16 +66,18 @@ export const MapPickerScreen = () => {
     }
   };
 
-// Replace handleConfirm with this:
 const handleConfirm = () => {
   if (!startPoint || !endPoint) {
     Alert.alert('Incomplete Path', 'Please select both start and end points for your route.');
     return;
   }
 
-  route.params.onGoBack({
-    selectedPath: [startPoint, endPoint],
-  });
+  if (tempData?.onGoBack) {
+    tempData.onGoBack({
+      selectedPath: [startPoint, endPoint],
+    });
+    clearTempData();
+  }
 
   goBack();
 }

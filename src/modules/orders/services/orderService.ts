@@ -41,6 +41,15 @@ export interface Order {
 
 export const orderService = {
   getOrderHistory: async (): Promise<ApiResponse<Order[]>> => {
-    return apiClient.get(ENDPOINTS.ORDERS.HISTORY);
+    return apiClient.get(ENDPOINTS.VENDOR_ORDERS.HISTORY);
+  },
+  getActiveOrders: async (): Promise<ApiResponse<Order[]>> => {
+    return apiClient.get(ENDPOINTS.VENDOR_ORDERS.ACTIVE);
+  },
+  getOrderDetails: async (id: string): Promise<ApiResponse<Order>> => {
+    return apiClient.get(ENDPOINTS.VENDOR_ORDERS.DETAILS(id));
+  },
+  updateOrderStatus: async (id: string, status: string): Promise<ApiResponse<Order>> => {
+    return apiClient.patch(ENDPOINTS.VENDOR_ORDERS.UPDATE_STATUS(id), { status });
   },
 };

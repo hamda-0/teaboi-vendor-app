@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { menuService, Category } from '../services/menuService';
+import { useQueryClient } from '@tanstack/react-query';
 
-export const useAddMenuItem = (navigation: any) => {
+export const useAddMenuLogic = (navigation: any) => {
+  const queryClient = useQueryClient();
+
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
@@ -28,30 +31,18 @@ export const useAddMenuItem = (navigation: any) => {
         fetchedCategories = resData.data;
       } else if (Array.isArray(resData?.data?.data)) {
         fetchedCategories = resData.data.data;
-      } else if (Array.isArray(resData)) {
-        fetchedCategories = resData;
       }
-
       setCategories(fetchedCategories);
-      if (fetchedCategories.length > 0) {
-        setSelectedCategoryId(fetchedCategories[0].id);
-      }
     } catch (error) {
       console.error('Failed to fetch categories', error);
-      Alert.alert('Error', 'Failed to load categories');
     } finally {
       setIsLoadingCats(false);
     }
   };
 
-  const handleCreate = async () => {
-    if (!name.trim()) {
-      Alert.alert('Validation Error', 'Please enter a valid item name');
-      return;
-    }
-    
-    if (!price || isNaN(Number(price))) {
-      Alert.alert('Validation Error', 'Please enter a valid price');
+  const handleAdd = async () => {
+    if (!name.trim() || !price || isNaN(Number(price))) {
+      Alert.alert('Validation Error', 'Please enter valid name and price');
       return;
     }
 
@@ -69,29 +60,41 @@ export const useAddMenuItem = (navigation: any) => {
         isAvailable,
       });
 
+      queryClient.invalidateQueries({ queryKey: ['vendorMenu'] });
       Alert.alert('Success', 'Menu item added successfully', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
     } catch (error: any) {
-      console.error('Create item failed', error);
-      Alert.alert('Error', error?.response?.data?.message || 'Failed to create menu item');
+      Alert.alert('Error', error?.response?.data?.message || 'Failed to add item');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const selectedCategoryName = categories.find(c => c.id === selectedCategoryId)?.name || 'Select a Category';
+  const selectCategory = (id: string) => {
+    setSelectedCategoryId(id);
+    setShowCategoryPicker(false);
+  };
+
+  const toggleCategoryPicker = () => setShowCategoryPicker(!showCategoryPicker);
+
+  const selectedCategoryName = categories.find(c => c.id === selectedCategoryId)?.name || 'Select Category';
 
   return {
-    name, setName,
-    price, setPrice,
+    name,
+    setName,
+    price,
+    setPrice,
     categories,
-    selectedCategoryId, setSelectedCategoryId,
-    isAvailable, setIsAvailable,
+    selectedCategoryId,
+    isAvailable,
+    setIsAvailable,
     isLoadingCats,
     isSubmitting,
-    showCategoryPicker, setShowCategoryPicker,
+    showCategoryPicker,
     selectedCategoryName,
-    handleCreate,
-  }
+    handleAdd,
+    selectCategory,
+    toggleCategoryPicker,
+  };
 };

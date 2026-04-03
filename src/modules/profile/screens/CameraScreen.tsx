@@ -8,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export const CameraScreen = ({ navigation, route }: { navigation: any, route: any }) => {
   const [facing, setFacing] = useState<CameraType>('back');
   const cameraRef = useRef<any>(null);
-  const onPhotoTaken = route.params?.onPhotoTaken;
 
   const takePicture = async () => {
     if (cameraRef.current) {
@@ -17,10 +16,10 @@ export const CameraScreen = ({ navigation, route }: { navigation: any, route: an
           quality: 0.7,
           skipProcessing: false,
         });
-        if (onPhotoTaken) {
-          onPhotoTaken(photo.uri);
-        }
-        goBack();
+        
+        navigate('CompleteProfile', {
+          capturedPhotoUri: photo.uri,
+        });
       } catch (error) {
         console.error('Failed to take picture:', error);
       }

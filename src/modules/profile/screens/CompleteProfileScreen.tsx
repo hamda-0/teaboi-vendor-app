@@ -11,12 +11,15 @@ import { ImagePickerModal } from '@shared/components/modals/ImagePickerModal';
 import { useCompleteProfile } from '../hooks/useCompleteProfile';
 import { useAuthStore } from '@store/useAuthStore';
 import { Input } from '@shared/components/Input/Input';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { formatCNIC } from '@/utils/regex';
 import { SuccessModal } from '@shared/components/modals/SuccessModal';
 
 type DocumentType = 'profile' | 'cnicFront' | 'cnicBack' | 'passport';
 
 export const CompleteProfileScreen = () => {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const user = useAuthStore((state: any) => state.user);
   
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -43,6 +46,14 @@ export const CompleteProfileScreen = () => {
     setCnicNumber(formatted);
   };
 
+  React.useEffect(() => {
+    const photoUri = route.params?.capturedPhotoUri;
+    if (photoUri && activeDocType) {
+      setImages((prev) => ({ ...prev, [activeDocType]: photoUri }));
+      navigation.setParams({ capturedPhotoUri: undefined });
+    }
+  }, [route.params?.capturedPhotoUri]);
+
   const handlePickImage = (type: DocumentType) => {
     setActiveDocType(type);
     setIsModalVisible(true);
@@ -54,11 +65,7 @@ export const CompleteProfileScreen = () => {
 
     const hasPermission = await PermissionService.requestCameraPermission();
     if (hasPermission) {
-      navigate('Camera', {
-        onPhotoTaken: (uri: string) => {
-          setImages((prev) => ({ ...prev, [activeDocType]: uri }));
-        },
-      });
+     navigate('Camera');
     }
   };
 

@@ -37,7 +37,7 @@ export const ENDPOINTS = {
   },
 
   CATEGORIES: {
-    ALL: '/admin/categories/all',
+    ALL: '/categories/all',
   },
 
   VENDOR_ROUTES: {
@@ -51,4 +51,16 @@ export const ENDPOINTS = {
     CREATE: '/user/orders',
     HISTORY: '/user/orders/history',
   },
+  VENDOR_ORDERS: {
+    ACTIVE: '/vendor/orders/active',
+    HISTORY: '/vendor/orders/history',
+    DETAILS: (id: string) => `/vendor/orders/${id}`,
+    UPDATE_STATUS: (id: string) => `/vendor/orders/${id}/status`,
+  },
+  VENDOR_MENU: {
+    LIST: '/menu/all', 
+    DELETE: (id: string) => `/menu/${id}`,
+    TOGGLE_STATUS: (id: string) => `/menu/${id}/toggle-availability`,
+    UPDATE: (id: string) => `/menu/${id}`,
+  }
 };

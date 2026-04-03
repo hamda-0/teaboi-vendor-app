@@ -5,9 +5,11 @@ import { Input } from '@shared/components/Input/Input';
 import { Button } from '@shared/components/Button/Button';
 import { theme } from '@theme/index';
 import { Ionicons } from '@expo/vector-icons';
-import { useAddMenuLogic } from '../hooks/useAddMenuLogic';
+import { useEditMenuLogic } from '../hooks/useEditMenuLogic';
+import { MenuItem } from '../services/menuService';
 
-export const AddMenuItemScreen = ({ navigation }: { navigation: any }) => {
+export const EditMenuItemScreen = ({ navigation, route }: { navigation: any; route: any }) => {
+  const { item }: { item: MenuItem } = route.params;
   const {
     name,
     setName,
@@ -21,10 +23,10 @@ export const AddMenuItemScreen = ({ navigation }: { navigation: any }) => {
     isSubmitting,
     showCategoryPicker,
     selectedCategoryName,
-    handleAdd,
+    handleUpdate,
     selectCategory,
     toggleCategoryPicker,
-  } = useAddMenuLogic(navigation);
+  } = useEditMenuLogic(navigation, item);
 
   return (
     <ScreenWrapper>
@@ -32,25 +34,18 @@ export const AddMenuItemScreen = ({ navigation }: { navigation: any }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
              <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add New Item</Text>
+        <Text style={styles.headerTitle}>Edit Menu Item</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <View style={styles.content}>
-        <Input 
-          label="Item Name" 
-          placeholder="Enter item name"
-          value={name}
-          onChangeText={setName}
-        />
-        
+        <Input label="Item Name" value={name} onChangeText={setName} />
         <Input 
           label="Price (Rs)" 
-          placeholder="0.00"
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="numeric"
-          containerStyle={{ marginTop: 16 }}
+          value={price} 
+          onChangeText={setPrice} 
+          keyboardType="numeric" 
+          containerStyle={{ marginTop: 16 }} 
         />
 
         <View style={styles.categoryContainer}>
@@ -107,8 +102,8 @@ export const AddMenuItemScreen = ({ navigation }: { navigation: any }) => {
 
       <View style={styles.footer}>
         <Button 
-          title="Create Menu Item" 
-          onPress={handleAdd}
+          title="Update Item" 
+          onPress={handleUpdate}
           loading={isSubmitting}
         />
       </View>

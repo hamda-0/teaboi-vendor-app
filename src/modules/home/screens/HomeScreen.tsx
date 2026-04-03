@@ -26,9 +26,9 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
 
   // Mock data
   const upcomingOrders = [
-    { time: '10:15', title: 'Morning Brew x 4', place: 'Suite 402, Neo Plaza' },
-    { time: '10:30', title: 'Ginger Tea x 2', place: 'Reception, Sky Tower' },
-    { time: '10:45', title: 'Masala Chai x 6', place: 'Floor 12, Capital One' },
+    { id: '1', time: '10:15', title: 'Morning Brew x 4', place: 'Suite 402, Neo Plaza' },
+    { id: '2', time: '10:30', title: 'Ginger Tea x 2', place: 'Reception, Sky Tower' },
+    { id: '3', time: '10:45', title: 'Masala Chai x 6', place: 'Floor 12, Capital One' },
   ];
 
   return (
@@ -114,7 +114,7 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
         {/* Upcoming Orders */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Upcoming Orders</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Orders')}>
             <Text style={styles.viewAll}>View All</Text>
           </TouchableOpacity>
         </View>
@@ -125,8 +125,7 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
             style={styles.orderCard}
             activeOpacity={0.75}
             onPress={() => {
-              // navigation.navigate('OrderDetail', { ... });
-              alert('Order tapped');
+              navigation.navigate('OrderDetail', { orderId: order.id || index.toString() });
             }}
           >
             <View style={styles.timeWindow}>
