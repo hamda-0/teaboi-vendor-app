@@ -10,10 +10,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@shared/components/ScreenWrapper';
 import { goBack } from '@/navigation/navigationRef';
 import MapView, { Marker, Polyline, Polygon } from 'react-native-maps';
+import MapViewDirections from 'react-native-maps-directions';
 import * as Location from 'expo-location';
 import { RoutePoint } from '../services/routeService';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useMapStore } from '@/store/useMapStore';
+import { Constants } from '@/config/constants';
 
 type MapPickerParams = {
   MapPicker: {
@@ -95,7 +97,13 @@ const handleConfirm = () => {
           {startPoint && <Marker coordinate={{ latitude: startPoint.lat, longitude: startPoint.lng }} pinColor="green" title="Start" />}
           {endPoint && <Marker coordinate={{ latitude: endPoint.lat, longitude: endPoint.lng }} pinColor="red" title="End" />}
           {startPoint && endPoint && (
-            <Polyline coordinates={[{ latitude: startPoint.lat, longitude: startPoint.lng }, { latitude: endPoint.lat, longitude: endPoint.lng }]} strokeColor="#22C55E" strokeWidth={4} />
+            <MapViewDirections
+              origin={{ latitude: startPoint.lat, longitude: startPoint.lng }}
+              destination={{ latitude: endPoint.lat, longitude: endPoint.lng }}
+              apikey={Constants.GOOGLE_MAPS_API_KEY}
+              strokeWidth={4}
+              strokeColor="#22C55E"
+            />
           )}
         </MapView>
 

@@ -10,11 +10,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { goBack } from '@/navigation/navigationRef';
 import MapView, { Marker, Polyline, Polygon } from 'react-native-maps';
+import MapViewDirections from 'react-native-maps-directions';
 import * as Location from 'expo-location';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { VendorRouteDetails } from '../services/routeService';
 import { socketService } from '@/services/socketService';
 import { ScreenWrapper } from '@/shared/components/ScreenWrapper';
+import { Constants } from '@/config/constants';
 
 type LiveTrackingParams = {
   LiveTracking: {
@@ -133,18 +135,78 @@ export const LiveTrackingScreen = () => {
   };
 
   const getPath = () => {
-    console.log(routeData.routePath,"routeData.routePath");
-    
     if (!routeData.routePath || routeData.routePath.length < 2) return null;
     const path = routeData.routePath;
+    
+    // Robust helper to handle both [lat, lng] array and {lat, lng} object
+    const formatCoord = (p: any) => {
+      if (!p) return null;
+      const lat = Array.isArray(p) ? p[0] : (p.lat || p.latitude);
+      const lng = Array.isArray(p) ? p[1] : (p.lng || p.longitude);
+      if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+      return { latitude: lat, longitude: lng };
+    };
+
+    const origin = currentLocation 
+      ? { latitude: currentLocation.lat, longitude: currentLocation.lng } 
+      : formatCoord(path[0]);
+      
+    const destination = formatCoord(path[path.length - 1]);
+
+    if (!origin || !destination) {
+      console.warn('Invalid origin or destination for directions');
+      return null;
+    }
+
+    // Convert routePath points to waypoints for MapViewDirections
+    // If we have a currentLocation, we include the route's first point as the first waypoint.
+    // If not, we start from the first point and only use intermediate waypoints.
+    let waypoints: any[] | undefined = undefined;
+
+    if (currentLocation) {
+        // From current location -> path[0] -> path[1] ... -> path[last]
+        waypoints = path.slice(0, -1).map(formatCoord).filter(c => c !== null);
+    } else {
+        // From path[0] -> path[1] ... -> path[last]
+        waypoints = path.length > 2 
+            ? path.slice(1, -1).map(formatCoord).filter(c => c !== null)
+            : undefined;
+    }
+
+    console.log(`Directions Data: Origin [${!!origin}], Dest [${!!destination}], Waypoints [${waypoints?.length ?? 0}]`);
+
     return (
       <View>
-        <Marker coordinate={{ latitude: path[0][0], longitude: path[0][1] }} pinColor="green" title="Start" />
-        <Marker coordinate={{ latitude: path[path.length-1][0], longitude: path[path.length-1][1] }} pinColor="red" title="End" />
-        <Polyline 
-          coordinates={path.map((p: any) => ({ latitude: p[0], longitude: p[1] }))} 
-          strokeColor="#22C55E" 
-          strokeWidth={4} 
+        <Marker 
+          coordinate={{ latitude: path[0][0], longitude: path[0][1] }} 
+          pinColor="green" 
+          title="Start" 
+        />
+        <Marker 
+          coordinate={{ latitude: path[path.length-1][0], longitude: path[path.length-1][1] }} 
+          pinColor="red" 
+          title="End" 
+        />
+        
+        <MapViewDirections
+          origin={origin}
+          destination={destination}
+          waypoints={waypoints}
+          apikey={Constants.GOOGLE_MAPS_API_KEY}
+          strokeWidth={4}
+          strokeColor="#3B82F6" 
+          optimizeWaypoints={true}
+          onReady={(result) => {
+            console.log(`Route Found: ${result.distance}km, ${result.duration}min`);
+            if (!currentLocation) {
+              mapRef.current?.fitToCoordinates(result.coordinates, {
+                edgePadding: { right: 50, bottom: 50, left: 50, top: 50 },
+              });
+            }
+          }}
+          onError={(errorMessage) => {
+            console.warn('MapViewDirections Error: ' + errorMessage);
+          }}
         />
       </View>
     );

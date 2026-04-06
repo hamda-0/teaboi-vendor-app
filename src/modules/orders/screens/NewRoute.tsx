@@ -8,7 +8,11 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Platform,
+  Modal,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import pixelPerfect from '@/utils/pixelPerfect';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@shared/components/ScreenWrapper';
 import { goBack } from '@/navigation/navigationRef';
@@ -42,6 +46,9 @@ export const NewRouteScreen = () => {
   
   const [startPoint, setStartPoint] = useState<RoutePoint | null>(null);
   const [endPoint, setEndPoint] = useState<RoutePoint | null>(null);
+
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   
   const { mutateAsync: updateRoute } = useUpdateRoute();
   const editingId = route.params?.editingRoute?.id;
@@ -85,6 +92,35 @@ export const NewRouteScreen = () => {
     setStartPoint(null);
     setEndPoint(null);
     setRouteName('');
+  };
+
+  const onStartTimeChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowStartTimePicker(false);
+    }
+    if (selectedDate) {
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      setStartTime(`${hours}:${minutes}`);
+    }
+  };
+
+  const onEndTimeChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowEndTimePicker(false);
+    }
+    if (selectedDate) {
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      setEndTime(`${hours}:${minutes}`);
+    }
+  };
+
+  const getPickerDate = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours || 0, minutes || 0, 0, 0);
+    return date;
   };
 
   const handleSave = async () => {
@@ -159,32 +195,74 @@ export const NewRouteScreen = () => {
 
         {/* Start & End Time */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Start Time      End Time</Text>
+          <Text style={styles.label}>Execution Time</Text>
           <View style={styles.timeRow}>
-            <View style={styles.timeInputContainer}>
-              <TextInput
-                style={styles.timeInput}
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="08:00"
-              />
-              <TouchableOpacity>
-                <Ionicons name="time-outline" size={22} color="#22C55E" />
+            <View style={styles.timeColumn}>
+              <Text style={styles.timeSubLabel}>Start</Text>
+              <TouchableOpacity 
+                style={styles.timeInputContainer} 
+                onPress={() => setShowStartTimePicker(true)}
+              >
+                <Text style={styles.timeInputText}>{startTime || '08:00'}</Text>
+                <Ionicons name="time-outline" size={pixelPerfect(20)} color="#22C55E" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.timeInputContainer}>
-              <TextInput
-                style={styles.timeInput}
-                value={endTime}
-                onChangeText={setEndTime}
-                placeholder="11:00"
-              />
-              <TouchableOpacity>
-                <Ionicons name="time-outline" size={22} color="#22C55E" />
+            <View style={styles.timeColumn}>
+              <Text style={styles.timeSubLabel}>End</Text>
+              <TouchableOpacity 
+                style={styles.timeInputContainer} 
+                onPress={() => setShowEndTimePicker(true)}
+              >
+                <Text style={styles.timeInputText}>{endTime || '11:00'}</Text>
+                <Ionicons name="time-outline" size={pixelPerfect(20)} color="#22C55E" />
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Time Picker Modal (Bottom Sheet style for iOS) */}
+          <Modal
+            transparent={true}
+            visible={showStartTimePicker || showEndTimePicker}
+            animationType="fade"
+            onRequestClose={() => {
+              setShowStartTimePicker(false);
+              setShowEndTimePicker(false);
+            }}
+          >
+            <TouchableOpacity 
+              style={styles.modalOverlay} 
+              activeOpacity={1} 
+              onPress={() => {
+                setShowStartTimePicker(false);
+                setShowEndTimePicker(false);
+              }}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    Select {showStartTimePicker ? 'Start' : 'End'} Time
+                  </Text>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setShowStartTimePicker(false);
+                      setShowEndTimePicker(false);
+                    }}
+                  >
+                    <Text style={styles.doneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <DateTimePicker
+                  value={getPickerDate(showStartTimePicker ? startTime : endTime)}
+                  mode="time"
+                  is24Hour={true}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={showStartTimePicker ? onStartTimeChange : onEndTimeChange}
+                />
+              </View>
+            </TouchableOpacity>
+          </Modal>
         </View>
 
         {/* Geographic Path / Map Button */}
@@ -312,23 +390,69 @@ const styles = StyleSheet.create({
   timeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: pixelPerfect(16),
+  },
+  timeColumn: {
+    flex: 1,
+    gap: pixelPerfect(6),
+  },
+  timeSubLabel: {
+    fontSize: pixelPerfect(13),
+    color: '#64748B',
+    fontWeight: '600',
+    marginLeft: pixelPerfect(4),
   },
   timeInputContainer: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: '#E2E8F0',
+    borderRadius: pixelPerfect(14),
+    paddingHorizontal: pixelPerfect(16),
+    height: pixelPerfect(54),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  timeInput: {
+  timeInputText: {
+    fontSize: pixelPerfect(16),
+    color: '#1E293B',
+    fontWeight: '600',
+  },
+
+  // Modal Styles
+  modalOverlay: {
     flex: 1,
-    fontSize: 16,
-    color: '#111827',
-    paddingVertical: 14,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: pixelPerfect(24),
+    borderTopRightRadius: pixelPerfect(24),
+    paddingBottom: pixelPerfect(40),
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: pixelPerfect(20),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalTitle: {
+    fontSize: pixelPerfect(17),
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  doneText: {
+    fontSize: pixelPerfect(16),
+    color: '#22C55E',
+    fontWeight: '700',
   },
 
   mapHeader: {
