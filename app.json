@@ -17,7 +17,12 @@
       "bundleIdentifier": "com.teaboi.vendorapp",
       "usesAppleSignIn": true,
       "appleTeamId": "374B4XJ82F",
-      "deploymentTarget": "16.0"
+      "deploymentTarget": "16.0",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -30,7 +35,8 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -54,7 +60,8 @@
           "android": {
             "compileSdkVersion": 36,
             "targetSdkVersion": 36,
-            "buildToolsVersion": "36.0.0"
+            "buildToolsVersion": "36.0.0",
+            "usesCleartextTraffic": true
           },
           "ios": {
             "deploymentTarget": "16.0"
