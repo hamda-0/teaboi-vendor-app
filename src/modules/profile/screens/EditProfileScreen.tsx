@@ -12,6 +12,7 @@ import { useEditProfile } from '../hooks/userEditProfile';
 import { goBack, navigate } from '@/navigation/navigationRef';
 import { FormikWrapper } from '@shared/components/FormikWrapper';
 import { ImagePickerModal } from '@shared/components/modals/ImagePickerModal';
+import { useCameraStore } from '@/store/useCameraStore';
 
 export const EditProfileScreen = () => {
   const {
@@ -24,6 +25,15 @@ export const EditProfileScreen = () => {
     validate,
   } = useEditProfile();
 
+  const { capturedImage, clearCapturedImage } = useCameraStore();
+
+  React.useEffect(() => {
+    if (capturedImage) {
+      setAvatar(capturedImage);
+      clearCapturedImage();
+    }
+  }, [capturedImage]);
+
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const handlePickImage = () => setIsModalVisible(true);
@@ -32,9 +42,7 @@ export const EditProfileScreen = () => {
     setIsModalVisible(false);
     const hasPermission = await PermissionService.requestCameraPermission();
     if (hasPermission) {
-      navigate('Camera', {
-        onPhotoTaken: (uri: string) => setAvatar(uri),
-      });
+      navigate('Camera');
     }
   };
 

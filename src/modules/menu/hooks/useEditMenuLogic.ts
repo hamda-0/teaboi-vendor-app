@@ -2,43 +2,19 @@ import { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { menuService, Category, MenuItem } from '../services/menuService';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCategories } from './useCategories';
 
 export const useEditMenuLogic = (navigation: any, item: MenuItem) => {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState(item.name);
   const [price, setPrice] = useState(item.price.toString());
-  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(item.categoryId);
   const [isAvailable, setIsAvailable] = useState(item.isAvailable);
   
-  const [isLoadingCats, setIsLoadingCats] = useState(true);
+  const { categories, isLoadingCats } = useCategories();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
-    try {
-      setIsLoadingCats(true);
-      const response = await menuService.getCategories(1, 50);
-      const resData = response as any;
-      
-      let fetchedCategories: Category[] = [];
-      if (Array.isArray(resData?.data)) {
-        fetchedCategories = resData.data;
-      } else if (Array.isArray(resData?.data?.data)) {
-        fetchedCategories = resData.data.data;
-      }
-      setCategories(fetchedCategories);
-    } catch (error) {
-      console.error('Failed to fetch categories', error);
-    } finally {
-      setIsLoadingCats(false);
-    }
-  };
 
   const handleUpdate = async () => {
     if (!name.trim() || !price || isNaN(Number(price))) {
@@ -73,7 +49,7 @@ export const useEditMenuLogic = (navigation: any, item: MenuItem) => {
 
   const toggleCategoryPicker = () => setShowCategoryPicker(!showCategoryPicker);
 
-  const selectedCategoryName = categories.find(c => c.id === selectedCategoryId)?.name || 'Select Category';
+  const selectedCategoryName = categories.find((c: Category) => c.id === selectedCategoryId)?.name || 'Select Category';
 
   return {
     name,

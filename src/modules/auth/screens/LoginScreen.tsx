@@ -10,6 +10,7 @@ import { useSocialAuth } from '../hooks/useSocialAuth';
 import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Constants } from '@/config/constants';
+import { navigate } from '@/navigation/navigationRef';
 
 
 export const LoginScreen = ({ navigation }: { navigation: any }) => {
@@ -94,7 +95,7 @@ export const LoginScreen = ({ navigation }: { navigation: any }) => {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Don't have an account? </Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+        <TouchableOpacity onPress={() => navigate('Signup')}>
           <Text style={styles.linkText}>Sign Up</Text>
         </TouchableOpacity>
       </View>

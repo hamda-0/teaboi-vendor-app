@@ -14,6 +14,7 @@ import { Input } from '@shared/components/Input/Input';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { formatCNIC } from '@/utils/regex';
 import { SuccessModal } from '@shared/components/modals/SuccessModal';
+import { useCameraStore } from '@/store/useCameraStore';
 
 type DocumentType = 'profile' | 'cnicFront' | 'cnicBack' | 'passport';
 
@@ -25,6 +26,7 @@ export const CompleteProfileScreen = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [activeDocType, setActiveDocType] = useState<DocumentType | null>(null);
   const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
+  const { capturedImage, clearCapturedImage } = useCameraStore();
 
   const { submitProfile, isLoading: submitting,success } = useCompleteProfile(() => {
     setIsSuccessModalVisible(true);
@@ -47,12 +49,11 @@ export const CompleteProfileScreen = () => {
   };
 
   React.useEffect(() => {
-    const photoUri = route.params?.capturedPhotoUri;
-    if (photoUri && activeDocType) {
-      setImages((prev) => ({ ...prev, [activeDocType]: photoUri }));
-      navigation.setParams({ capturedPhotoUri: undefined });
+    if (capturedImage && activeDocType) {
+      setImages((prev) => ({ ...prev, [activeDocType]: capturedImage }));
+      clearCapturedImage();
     }
-  }, [route.params?.capturedPhotoUri]);
+  }, [capturedImage]);
 
   const handlePickImage = (type: DocumentType) => {
     setActiveDocType(type);
@@ -76,7 +77,7 @@ export const CompleteProfileScreen = () => {
     const hasPermission = await PermissionService.requestGalleryPermission();
     if (hasPermission) {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: activeDocType === 'profile',
         aspect: activeDocType === 'profile' ? [1, 1] : undefined,
         quality: 0.7,
