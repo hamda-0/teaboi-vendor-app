@@ -1,18 +1,16 @@
 import React from 'react';
 import { Alert } from 'react-native';
-import { useVendorMenu } from './useVendorMenu';
 
-export const useMenuItemCard = (item: any) => {
-  const { toggleItem } = useVendorMenu();
+export const useMenuItemCard = (item: any, onToggle: (id: string) => Promise<any>) => {
   const [localAvailable, setLocalAvailable] = React.useState(item.isAvailable);
 
   const handleToggle = async () => {
     const previousValue = localAvailable;
-    // Instant toggle
+    // Instant optimistic update
     setLocalAvailable(!previousValue);
     
     try {
-      await toggleItem(item.id);
+      await onToggle(item.id);
     } catch (err) {
       // Revert on failure
       setLocalAvailable(previousValue);

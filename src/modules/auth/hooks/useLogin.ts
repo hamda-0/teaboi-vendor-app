@@ -15,7 +15,8 @@ export const useLogin = () => {
   const loginMutation = useMutation({
     mutationFn: (values: any) => authService.login(values),
     onSuccess: (response: ApiResponse<LoginResponseData>) => {
-      if (response.data) {
+      if (!response.data) return;
+      
         const { user, accessToken } = response.data;
         if (user.status === AccountStatus.PENDING_VERIFICATION) {
           navigate('OtpVerification', { email: user.email });
@@ -37,7 +38,6 @@ export const useLogin = () => {
           return;
         }
         setAuth(user, accessToken);
-      }
     },
     onError: (err: any, values) => {
       console.log('Login Error Status:', err.statusCode);

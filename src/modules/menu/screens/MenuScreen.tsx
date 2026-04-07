@@ -16,8 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMenuLogic } from '../hooks/useMenuLogic';
 import { useMenuItemCard } from '../hooks/useMenuItemCard';
 
-const MenuItemCard = ({ item, onDelete, onEdit }: any) => {
-  const { localAvailable, handleToggle } = useMenuItemCard(item);
+const MenuItemCard = ({ item, onDelete, onEdit, onToggle }: any) => {
+  const { localAvailable, handleToggle } = useMenuItemCard(item, onToggle);
 
   return (
     <View style={styles.menuCard}>
@@ -58,6 +58,7 @@ export const MenuScreen = ({ navigation }: { navigation: any }) => {
     isRefetching,
     refetch,
     handleDelete,
+    toggleItem,
     navigateToAddItem,
     navigateToEditItem,
   } = useMenuLogic(navigation);
@@ -89,6 +90,7 @@ export const MenuScreen = ({ navigation }: { navigation: any }) => {
               item={item} 
               onDelete={handleDelete} 
               onEdit={navigateToEditItem} 
+              onToggle={toggleItem}
             />
           )}
           keyExtractor={(item) => item.id}

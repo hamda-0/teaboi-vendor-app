@@ -9,6 +9,7 @@ export const useMenuLogic = (navigation: any) => {
     isRefetching,
     refetch,
     deleteItem,
+    toggleItem,
   } = useVendorMenu();
 
   const handleDelete = (id: string, name: string) => {
@@ -32,6 +33,7 @@ export const useMenuLogic = (navigation: any) => {
     isRefetching,
     refetch,
     handleDelete,
+    toggleItem,
     navigateToAddItem,
     navigateToEditItem,
   };

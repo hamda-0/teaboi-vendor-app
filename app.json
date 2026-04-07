@@ -110,7 +110,8 @@
           "androidGoogleMapsApiKey": "AIzaSyBmInsBLw3LufW_nUALGUdhph-E_nwAPaY"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

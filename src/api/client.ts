@@ -82,7 +82,6 @@ apiClient.interceptors.response.use(
     return apiRes;
   },
   (error) => {
-    console.log(error,error.statusCode,error.response,">>>>>>>");
     if (error.response?.data) {
       const apiRes = error.response.data as ApiErrorResponse;
       const statusCode = apiRes.statusCode || error.response.status;

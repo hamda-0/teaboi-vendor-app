@@ -1,62 +1,58 @@
-# Teaboi Vendor App Codebase Audit
+# Teaboi Vendor App Issue Audit
+
+Last updated: April 8, 2026
+
+## Scope
+
+- Repo audited from current working tree state
+- Validation run: `npx tsc --noEmit` on April 8, 2026
+- No dedicated `lint` or `test` script exists in [package.json](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/package.json)
 
 ## Executive Summary
 
-- Overall health score: 5/10
-- Audit scope: application source in `src/`, app entry points, navigation, shared components, stores, native config, and Expo config
-- TypeScript status: `npx tsc --noEmit` passes, so the main risks are runtime flow issues, permissive configuration, and places where the code intentionally bypasses types
-
-### Top 3 issues to fix first
-
-1. `PENDING_PROFILE` login flow navigates before persisting auth, which can leave profile completion unauthenticated.
-2. Cleartext networking is enabled on both iOS and Android.
-3. Camera capture is hardcoded to return to `CompleteProfile`, which breaks the `EditProfile` flow.
-
-### Architecture Assessment
-
-The repo has a workable high-level shape: `services` for API boundaries, `react-query` for server state, Zustand for local app state, and feature-based modules under `src/modules`. The main problems are inconsistency and safety rather than lack of structure: some screens still embed too much flow logic, several request/response boundaries are typed loosely with `any`, and a few navigation and security decisions are fragile enough to create runtime failures.
-
----
+- Overall health: 5.5/10
+- TypeScript currently passes, so the biggest remaining risks are runtime flow bugs, insecure production config, and unfinished app wiring.
+- The first fix should be the login/auth branch because it can strand a valid user inside profile completion without a persisted token.
 
 ## Fix Sequence
 
-1. Critical flow breakages
-2. Security and production hardening
-3. Redundant fetching and data-flow cleanup
-4. Type-safety and API-boundary cleanup
-5. Dead code and maintainability cleanup
+1. Fix auth persistence during login branching.
+2. Make camera return data explicit instead of relying on shared transient state.
+3. Remove global cleartext transport allowances.
+4. Remove committed Google Maps API keys from config and native files.
+5. Strip debug logging from auth, API, socket, notification, and profile flows.
+6. Replace placeholder dashboard data with live app state.
+7. Clean up dead/duplicated infrastructure and tighten weakly typed boundaries.
 
----
+## Current Issues
 
-## 1. Critical Flow Breakages
-
-### 1.1 Pending-profile login path drops the auth token
+### 1. Pending-profile login path still drops the auth token
 
 - Severity: Critical
-- Category: State Management Problems
+- Status: Confirmed
 - Location:
   - [src/modules/auth/hooks/useLogin.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useLogin.ts#L17)
-  - [src/store/useAuthStore.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/useAuthStore.ts#L13)
-  - [src/api/client.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/api/client.ts#L19)
+  - [src/store/useAuthStore.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/useAuthStore.ts#L11)
+  - [src/api/client.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/api/client.ts#L17)
 
-#### What is wrong
+#### Problem
 
-`useLogin` only calls `setAuth(user, accessToken)` after all status gating. For users in `PENDING_PROFILE` or with `vendorProfile.isProfileComplete === false`, the code navigates to `CompleteProfile` and returns before persisting the token.
+`useLogin` only calls `setAuth(user, accessToken)` at the end of the success handler. Users in `PENDING_PROFILE` are redirected to `CompleteProfile` first and return before auth is persisted.
 
-Because the API client reads the bearer token from Zustand storage, the user can land in the profile-completion flow without authenticated API access.
+Because API requests read the token from Zustand state, that profile-completion flow can run without the bearer token that the backend expects.
 
-#### Why it matters
+#### Evidence
 
-- Profile completion can fail for valid users
-- The bug is path-dependent and will be hard to diagnose from UI behavior alone
-- It breaks the intended auth lifecycle
+- `PENDING_PROFILE` returns early at [src/modules/auth/hooks/useLogin.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useLogin.ts#L26)
+- `setAuth` is only reached later at [src/modules/auth/hooks/useLogin.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useLogin.ts#L40)
+- The API client attaches auth from store state at [src/api/client.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/api/client.ts#L17)
 
-#### Possible fix
+#### Possible Fix
 
-Persist auth first, then branch on status.
+Persist auth immediately after a successful login response, then branch on account status.
 
 ```ts
-onSuccess: (response: ApiResponse<LoginResponseData>) => {
+onSuccess: (response) => {
   if (!response.data) return;
 
   const { user, accessToken, vendorProfile } = response.data;
@@ -67,850 +63,258 @@ onSuccess: (response: ApiResponse<LoginResponseData>) => {
     return;
   }
 
-  if (
-    user.status === AccountStatus.PENDING_PROFILE ||
-    !vendorProfile.isProfileComplete
-  ) {
+  if (user.status === AccountStatus.PENDING_PROFILE || !vendorProfile.isProfileComplete) {
     navigate('CompleteProfile');
     return;
   }
 
   if (user.status === AccountStatus.PENDING_APPROVAL) {
-    Alert.alert(
-      'Pending Approval',
-      'Your registration is complete. Please wait for admin review.'
-    );
+    Alert.alert('Pending Approval', 'Your registration is complete. Please wait for admin review.');
   }
 }
 ```
 
-#### Recommended follow-up
+#### Validation After Fix
 
-- Add a test for the `PENDING_PROFILE` login branch
-- Confirm whether `PENDING_VERIFICATION` should also persist auth or stay unauthenticated by product decision
+- Login with a `PENDING_PROFILE` user
+- Confirm `useAuthStore.getState().token` is populated before `CompleteProfile` loads
+- Confirm a profile submission request sends `Authorization: Bearer ...`
 
----
+### 2. Camera return flow still depends on shared transient state
 
-### 1.2 Camera screen always returns to `CompleteProfile`
-
-- Severity: Medium
-- Category: Navigation & Lifecycle Issues
+- Severity: High
+- Status: Confirmed
 - Location:
-  - [src/modules/profile/screens/EditProfileScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/EditProfileScreen.tsx#L31)
-  - [src/modules/profile/screens/CameraScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CameraScreen.tsx#L12)
-  - [src/modules/profile/screens/CompleteProfileScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CompleteProfileScreen.tsx#L49)
+  - [src/modules/profile/screens/CompleteProfileScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CompleteProfileScreen.tsx#L27)
+  - [src/modules/profile/screens/CompleteProfileScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CompleteProfileScreen.tsx#L51)
+  - [src/modules/profile/hooks/useImageSelection.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/hooks/useImageSelection.ts#L14)
+  - [src/store/useCameraStore.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/useCameraStore.ts#L9)
 
-#### What is wrong
+#### Problem
 
-`EditProfileScreen` navigates to `Camera` with an `onPhotoTaken` callback, but `CameraScreen` ignores incoming params and always does:
+The camera flow now returns via a shared Zustand field, not via route params. `CompleteProfileScreen` still relies on its local `activeDocType` to decide where the returned image should go.
 
-```ts
-navigate('CompleteProfile', {
-  capturedPhotoUri: photo.uri,
-});
-```
+That means the captured image and its destination are stored in different places. If the screen remounts, if another flow uses the same camera store, or if state gets cleared out of sequence, the photo can be lost or assigned incorrectly.
 
-That means the camera works only for one caller and is incompatible with another existing caller in the codebase.
+#### Evidence
 
-#### Why it matters
+- Destination state is local: `activeDocType` at [src/modules/profile/screens/CompleteProfileScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CompleteProfileScreen.tsx#L27)
+- Returned image is global: `capturedImage` store use at [src/modules/profile/hooks/useImageSelection.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/hooks/useImageSelection.ts#L14)
+- The assignment only works if both happen to still align at [src/modules/profile/screens/CompleteProfileScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CompleteProfileScreen.tsx#L51)
 
-- `EditProfile` camera capture is effectively broken
-- The screen contract is inconsistent across callers
-- Future callers will inherit the same bug unless the contract is made explicit
+#### Possible Fix
 
-#### Possible fix
+Pass a typed payload through navigation instead of splitting responsibility between local screen state and a shared global store.
 
-Handle callback-based return when present, and fall back only when needed.
+Recommended sequence:
 
-```ts
-const onPhotoTaken = route.params?.onPhotoTaken;
+1. Add camera route params like `{ target: 'profile' | 'cnicFront' | 'cnicBack' | 'passport' | 'avatar' }`.
+2. Navigate with the explicit target from `CompleteProfile` or `EditProfile`.
+3. Return `{ uri, target }` from the camera screen.
+4. Remove `useCameraStore` from this flow once all callers use route params.
 
-if (onPhotoTaken) {
-  onPhotoTaken(photo.uri);
-  goBack();
-  return;
-}
+#### Validation After Fix
 
-navigate('CompleteProfile', {
-  capturedPhotoUri: photo.uri,
-});
-```
+- Capture a profile photo from `CompleteProfile`
+- Capture an avatar from `EditProfile`
+- Repeat both after navigating away and back
+- Confirm no stale image is reused and every photo lands in the intended field
 
-#### Better long-term pattern
-
-Use typed route params for `Camera`:
-
-```ts
-type CameraParams = {
-  Camera: {
-    onPhotoTaken?: (uri: string) => void;
-    returnTo?: 'CompleteProfile' | 'EditProfile';
-  };
-};
-```
-
----
-
-### 1.3 `CompleteProfile` camera flow depends on transient local state
-
-- Severity: Medium
-- Category: Navigation & Lifecycle Issues
-- Location:
-  - [src/modules/profile/screens/CompleteProfileScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CompleteProfileScreen.tsx#L49)
-  - [src/modules/profile/screens/CompleteProfileScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CompleteProfileScreen.tsx#L62)
-  - [src/modules/profile/screens/CameraScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/screens/CameraScreen.tsx#L20)
-
-#### What is wrong
-
-`CompleteProfileScreen` stores the active document target in local state (`activeDocType`) and then navigates to `Camera`. The return flow depends on that local state still being present when `capturedPhotoUri` arrives back through route params.
-
-This is functional in the current happy path, but the target document type is not passed through navigation, so the return contract is implicit and fragile.
-
-#### Why it matters
-
-- The flow is easy to break during refactors
-- State restoration or alternate return paths would be fragile
-- The screen is coupling navigation and upload target state too tightly
-
-#### Possible fix
-
-Pass the target doc type into the camera route explicitly:
-
-```ts
-navigate('Camera', {
-  docType: activeDocType,
-});
-```
-
-Then return that same `docType` alongside the image URI:
-
-```ts
-navigate('CompleteProfile', {
-  capturedPhotoUri: photo.uri,
-  docType: route.params?.docType,
-});
-```
-
-And consume it from params instead of relying on stale local state.
-
----
-
-## 2. Security and Production Hardening
-
-### 2.1 Cleartext traffic is enabled globally
+### 3. Cleartext traffic is still enabled globally
 
 - Severity: Critical
-- Category: Security Concerns
+- Status: Confirmed
 - Location:
   - [app.json](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/app.json#L21)
   - [app.json](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/app.json#L39)
-  - [app.json](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/app.json#L60)
-  - [android/app/src/main/AndroidManifest.xml](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/android/app/src/main/AndroidManifest.xml#L18)
-  - [ios/teaboivendorapp/Info.plist](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/ios/teaboivendorapp/Info.plist#L56)
+  - [app.json](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/app.json#L58)
 
-#### What is wrong
+#### Problem
 
-The app explicitly permits non-HTTPS traffic:
+The Expo config still enables:
 
-- iOS: `NSAllowsArbitraryLoads = true`
-- Android: `usesCleartextTraffic = true`
+- `NSAllowsArbitraryLoads` on iOS
+- `usesCleartextTraffic` on Android
+- the same Android cleartext allowance again through `expo-build-properties`
 
-This is enabled in Expo config and reflected in the generated native files.
+This keeps non-HTTPS traffic allowed across the app.
 
-#### Why it matters
+#### Possible Fix
 
-- Weakens transport guarantees for all API traffic
-- Makes it easier for insecure endpoints to survive into production
-- Unnecessarily broad for a vendor app that handles authenticated requests
+Recommended sequence:
 
-#### Possible fix
+1. Remove `NSAllowsArbitraryLoads`.
+2. Remove both Android cleartext flags.
+3. If development needs plain HTTP for a local host, gate that by build profile or use scoped exceptions only for development.
+4. Regenerate native projects if Expo config is the source of truth.
 
-Remove these flags entirely unless there is a documented host-level exception requirement.
+#### Validation After Fix
 
-#### Safer pattern
+- Confirm production/staging API base URLs are `https://`
+- Rebuild native projects
+- Verify app startup, login, and API calls still work in dev and staging
 
-- Use HTTPS-only APIs
-- If a local dev host needs exceptions, scope them to development builds only
-- On iOS, use domain exceptions instead of arbitrary loads
-- On Android, use a network security config instead of global cleartext enablement
+### 4. Google Maps API keys are committed in source-controlled config
 
----
-
-### 2.2 Auth token is persisted without encryption
-
-- Severity: Medium
-- Category: Security Concerns
+- Severity: High
+- Status: Confirmed
 - Location:
-  - [src/store/storage.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/storage.ts#L1)
-  - [src/store/useAuthStore.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/useAuthStore.ts#L33)
-
-#### What is wrong
-
-The auth store persists `token` using MMKV, but MMKV is initialized with:
-
-```ts
-const storage = createMMKV();
-```
-
-No encryption key is configured.
-
-#### Why it matters
-
-- Bearer tokens are long-lived sensitive credentials
-- Persisting them unencrypted increases exposure on a compromised device or during forensic extraction
-
-#### Possible fix
-
-Use encrypted storage for the token. Options:
-
-1. Configure MMKV encryption
-2. Store only the token in platform-secure storage and keep the rest in MMKV
-
-Example direction:
-
-```ts
-const storage = createMMKV({
-  id: 'secure-auth-storage',
-  encryptionKey: secureKeyFromKeychain,
-});
-```
-
-#### Recommended follow-up
-
-- Separate sensitive auth material from non-sensitive user profile state
-- Define token rotation and logout cleanup behavior explicitly
-
----
-
-### 2.3 Sensitive logging is left in production paths
-
-- Severity: Medium
-- Category: Security Concerns
-- Location:
-  - [src/services/socketService.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/services/socketService.ts#L14)
-  - [src/api/client.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/api/client.ts#L85)
-  - [src/modules/auth/hooks/useLogin.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useLogin.ts#L43)
-  - [src/modules/profile/services/profileService.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/services/profileService.ts#L42)
-
-#### What is wrong
-
-There are unconditional logs that expose sensitive or noisy runtime information:
-
-- Socket token log in `socketService`
-- Raw error dump in `apiClient`
-- Auth and profile response logging in feature hooks/services
-
-Some logs are gated by `isDev`, but several are not.
-
-#### Why it matters
-
-- Tokens and request payloads can leak into device logs
-- Crash diagnostics become noisy and harder to reason about
-- Production observability should be structured, not ad hoc console dumps
-
-#### Possible fix
-
-- Remove token and raw response logs entirely
-- Wrap non-sensitive diagnostics in `if (__DEV__)`
-- Replace debugging logs with a structured logger if needed
-
-Example:
-
-```ts
-if (__DEV__) {
-  console.log('API Error:', {
-    url: error.config?.url,
-    method: error.config?.method,
-    statusCode,
-  });
-}
-```
-
----
-
-### 2.4 API keys are committed into JS and native config
-
-- Severity: Medium
-- Category: Security Concerns
-- Location:
-  - [src/config/constants.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/config/constants.ts#L6)
   - [app.json](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/app.json#L107)
+  - [src/config/constants.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/config/constants.ts#L6)
+  - [ios/teaboivendorapp/Info.plist](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/ios/teaboivendorapp/Info.plist#L51)
+  - [ios/teaboivendorapp/AppDelegate.swift](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/ios/teaboivendorapp/AppDelegate.swift#L39)
   - [android/app/src/main/AndroidManifest.xml](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/android/app/src/main/AndroidManifest.xml#L19)
-  - [ios/teaboivendorapp/Info.plist](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/ios/teaboivendorapp/Info.plist#L50)
 
-#### What is wrong
+#### Problem
 
-The Google Maps API key is hardcoded in multiple places.
+The same Google Maps API key is committed in Expo config, JS config, and generated native files. Even if platform restrictions exist, committing active keys expands exposure and makes rotation harder.
 
-#### Why it matters
+#### Possible Fix
 
-- Mobile keys are not secrets in the strict sense, but committing them broadly increases exposure
-- Multiple sources of truth make rotation error-prone
-- Restriction mistakes become harder to detect
+Recommended sequence:
 
-#### Possible fix
+1. Move the key to environment-based config used at build time.
+2. Remove hardcoded keys from `app.json` and `src/config/constants.ts`.
+3. Regenerate native files so the committed iOS and Android files stop carrying the key.
+4. Rotate the existing key after the replacement is deployed.
+5. Restrict the rotated key by bundle/package identity and allowed APIs.
 
-- Source the key from env/config once
-- Inject it through Expo config plugins/native config generation
-- Restrict the key in Google Cloud by package name, SHA cert, and iOS bundle id
+#### Validation After Fix
 
----
+- Build iOS and Android with env-provided keys
+- Confirm maps still load
+- Confirm old committed key no longer works after rotation
 
-## 3. Redundant Fetching and Data-Flow Cleanup
-
-### 3.1 Orders screen fetches both active and history orders on mount
-
-- Severity: Medium
-- Category: Redundant / Excessive API Calls
-- Location:
-  - [src/modules/orders/hooks/useOrdersLogic.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/orders/hooks/useOrdersLogic.ts#L11)
-  - [src/modules/orders/hooks/useActiveOrders.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/orders/hooks/useActiveOrders.ts#L11)
-  - [src/modules/orders/hooks/useOrderHistory.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/orders/hooks/useOrderHistory.ts#L11)
-
-#### What is wrong
-
-`useOrdersLogic` mounts both hooks immediately, so both endpoints are fetched even when the UI is showing only one tab.
-
-#### Why it matters
-
-- Extra network traffic
-- Slower first paint for the orders screen
-- Unnecessary server load
-
-#### Possible fix
-
-Option A: Gate each query with `enabled`.
-
-```ts
-useQuery({
-  queryKey: ['activeOrders'],
-  queryFn: orderService.getActiveOrders,
-  enabled: activeTab === 'active',
-});
-```
-
-Option B: Replace both hooks with one tab-driven hook:
-
-```ts
-useQuery({
-  queryKey: ['orders', activeTab],
-  queryFn: activeTab === 'active'
-    ? orderService.getActiveOrders
-    : orderService.getOrderHistory,
-});
-```
-
----
-
-### 3.2 Category fetching logic is duplicated across menu hooks
+### 5. Debug logging is still present in sensitive runtime paths
 
 - Severity: Medium
-- Category: DRY Violations
+- Status: Confirmed
 - Location:
-  - [src/modules/menu/hooks/useAddMenuLogic.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/menu/hooks/useAddMenuLogic.ts#L19)
-  - [src/modules/menu/hooks/useEditMenuLogic.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/menu/hooks/useEditMenuLogic.ts#L19)
-  - [src/modules/menu/hooks/useAddMenuItem.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/menu/hooks/useAddMenuItem.ts#L16)
+  - [src/api/client.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/api/client.ts#L24)
+  - [src/modules/auth/hooks/useLogin.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useLogin.ts#L42)
+  - [src/services/socketService.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/services/socketService.ts#L22)
+  - [src/services/socketService.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/services/socketService.ts#L119)
+  - [src/config/NotificationsContext.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/config/NotificationsContext.tsx#L53)
+  - [src/store/useNotificationStore.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/useNotificationStore.ts#L45)
 
-#### What is wrong
+#### Problem
 
-The same fetch/parse/store logic exists in three places:
+The app still logs request bodies, auth failures, socket lifecycle details, push notification payloads, and a stray callback dump. Some of it is dev-gated, some of it is not.
 
-- get categories
-- normalize inconsistent response shape
-- set loading state
-- update local category selection state
+This creates noise during debugging and increases the chance of leaking sensitive runtime data into device logs or remote log collection.
 
-`useAddMenuItem` is also unused.
+#### Possible Fix
 
-#### Why it matters
+Recommended sequence:
 
-- Fixes will need to be copied to multiple places
-- Behavior can drift
-- Categories are server state, but are treated as local one-off state
+1. Delete logs that are only temporary debugging.
+2. Keep only structured error reporting that is safe for production.
+3. Wrap any remaining development diagnostics behind a single logger utility and an `isDev` guard.
+4. Remove the duplicate notification logs in whichever notification implementation is not retained.
 
-#### Possible fix
+#### Validation After Fix
 
-Create a shared `useCategories` hook backed by `react-query`:
+- Exercise login, push registration, and socket connect/disconnect
+- Confirm production builds do not emit verbose payload logs
 
-```ts
-export const useCategories = () => {
-  return useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const response = await menuService.getCategories(1, 50);
-      if (Array.isArray(response?.data)) return response.data;
-      if (Array.isArray(response?.data?.data)) return response.data.data;
-      return [];
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-};
-```
-
-Then both add/edit screens consume the same hook.
-
-#### Consolidation sequence
-
-1. Introduce `useCategories`
-2. Replace category state/loading logic in add/edit hooks
-3. Delete `useAddMenuItem`
-
----
-
-### 3.3 Menu item toggle hook creates a query dependency per card
-
-- Severity: Low
-- Category: Performance Issues
-- Location:
-  - [src/modules/menu/screens/MenuScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/menu/screens/MenuScreen.tsx#L19)
-  - [src/modules/menu/hooks/useMenuItemCard.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/menu/hooks/useMenuItemCard.ts#L5)
-
-#### What is wrong
-
-Each `MenuItemCard` calls `useVendorMenu()` only to access `toggleItem`. That means every card instance subscribes to the same query layer even though the list parent already owns the menu query.
-
-#### Why it matters
-
-- Extra subscriptions and indirection in a list
-- Harder to reason about data ownership
-- The list parent already has the mutation context
-
-#### Possible fix
-
-Move `toggleItem` ownership to the parent and pass it down:
-
-```ts
-const { toggleItem } = useVendorMenu();
-<MenuItemCard item={item} onToggle={toggleItem} />
-```
-
-Then convert `useMenuItemCard` to a small local optimistic-state helper or remove it entirely.
-
----
-
-## 4. Type Safety and API Boundary Cleanup
-
-### 4.1 Route creation bypasses the declared API contract with `as any`
+### 6. Home screen is still a static placeholder instead of a live dashboard
 
 - Severity: Medium
-- Category: TypeScript / Type Safety
-- Location:
-  - [src/modules/orders/services/routeService.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/orders/services/routeService.ts#L38)
-  - [src/modules/orders/screens/NewRoute.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/orders/screens/NewRoute.tsx#L138)
-
-#### What is wrong
-
-`CreateRouteRequest` requires:
-
-```ts
-zones: { coordinates: RoutePoint[] }[];
-```
-
-But `NewRouteScreen` sends only:
-
-```ts
-{
-  name,
-  startTime,
-  endTime,
-  routePath: [startPoint, endPoint],
-}
-```
-
-and suppresses the mismatch with `payload as any`.
-
-#### Why it matters
-
-- The compiler cannot protect a core request path
-- If the backend requires `zones`, the error appears only at runtime
-- This weakens confidence in the service type layer
-
-#### Possible fix
-
-Choose one of these:
-
-1. If `zones` is required, send it from the screen
-2. If `zones` is optional in the real API, change the type
-
-Example:
-
-```ts
-export interface CreateRouteRequest {
-  name: string;
-  startTime: string;
-  endTime: string;
-  routePath: RoutePoint[];
-  zones?: { coordinates: RoutePoint[] }[];
-}
-```
-
-Only make it optional if the backend contract actually allows that.
-
----
-
-### 4.2 `any` is used heavily at navigation and service boundaries
-
-- Severity: Medium
-- Category: TypeScript / Type Safety
-- Location:
-  - [src/modules/auth/services/authService.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/services/authService.ts#L7)
-  - [src/modules/auth/hooks/useLogin.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useLogin.ts#L13)
-  - [src/modules/home/navigations/MainNavigator.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/home/navigations/MainNavigator.tsx#L18)
-  - [src/navigation/navigationRef.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/navigation/navigationRef.ts#L6)
-  - [src/store/useMapStore.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/useMapStore.ts#L4)
-
-#### What is wrong
-
-Core boundaries use `any`:
-
-- auth request payloads
-- route params
-- navigation helpers
-- transient map callback storage
-
-#### Why it matters
-
-- TypeScript cannot validate screen contracts
-- Refactors become risky because route payload mismatches are silent
-- Service layer loses value if request/response shapes are not enforced
-
-#### Possible fix
-
-Tighten one boundary at a time:
-
-1. Define request types for auth service methods
-2. Type `navigationRef` with the root param list
-3. Replace `useMapStore.tempData: any` with a concrete interface
-4. Remove `as any` and `route: any` from screens
-
-Example:
-
-```ts
-interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-login: async (
-  credentials: LoginCredentials
-): Promise<ApiResponse<LoginResponseData>> => {
-  return apiClient.post(ENDPOINTS.AUTH.LOGIN, credentials);
-}
-```
-
----
-
-### 4.3 API response parsing is inconsistent across hooks
-
-- Severity: Low
-- Category: Code Structure & Architecture
-- Location:
-  - [src/modules/menu/hooks/useVendorMenu.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/menu/hooks/useVendorMenu.ts#L35)
-  - [src/modules/orders/hooks/useActiveOrders.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/orders/hooks/useActiveOrders.ts#L16)
-  - [src/modules/orders/hooks/useOrderHistory.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/orders/hooks/useOrderHistory.ts#L16)
-  - [src/modules/orders/hooks/useVendorRoutes.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/orders/hooks/useVendorRoutes.ts#L16)
-
-#### What is wrong
-
-Multiple hooks manually probe different nested shapes:
-
-- `rawResponse?.data?.data`
-- `rawResponse?.data`
-- `rawResponse`
-
-That is a sign the service layer is not normalizing responses consistently.
-
-#### Why it matters
-
-- Parsing logic spreads into UI hooks
-- Small backend response changes create broad breakage
-- Service functions stop being reliable boundaries
-
-#### Possible fix
-
-Normalize server responses inside `service` functions, not in hooks.
-
-Example:
-
-```ts
-getActiveOrders: async (): Promise<Order[]> => {
-  const response = await apiClient.get<ApiResponse<Order[]>>(ENDPOINTS.VENDOR_ORDERS.ACTIVE);
-  return Array.isArray(response.data) ? response.data : [];
-}
-```
-
-Then the hook becomes:
-
-```ts
-useQuery({
-  queryKey: ['activeOrders'],
-  queryFn: orderService.getActiveOrders,
-});
-```
-
----
-
-## 5. Dead Code and Maintainability Cleanup
-
-### 5.1 Notification context duplicates store-based notification setup and is unused
-
-- Severity: Low
-- Category: Code Structure & Architecture
-- Location:
-  - [src/config/NotificationsContext.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/config/NotificationsContext.tsx#L1)
-  - [src/store/useNotificationStore.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/useNotificationStore.ts#L1)
-  - [App.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/App.tsx#L24)
-
-#### What is wrong
-
-There are two implementations of notification registration/listener setup:
-
-- `NotificationProvider`
-- `useNotificationStore().initialize()`
-
-Only the store version is used by `App.tsx`.
-
-#### Why it matters
-
-- Duplicated side-effect logic is easy to desynchronize
-- Future maintainers may modify the wrong implementation
-
-#### Possible fix
-
-Delete `NotificationsContext.tsx` if the Zustand version is the intended source of truth. If context is preferred, remove the store initializer instead.
-
----
-
-### 5.2 `RootNavigation.ts` is an empty file
-
-- Severity: Low
-- Category: Code Structure & Architecture
-- Location:
-  - [src/navigation/RootNavigation.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/navigation/RootNavigation.ts)
-
-#### What is wrong
-
-The file exists but contains no code.
-
-#### Why it matters
-
-- Creates confusion during navigation refactors
-- Suggests a stale architectural direction
-
-#### Possible fix
-
-- Delete the file if unused
-- Or move `navigationRef` helpers into it if that was the intended location
-
----
-
-### 5.3 Unused menu hook should be removed
-
-- Severity: Low
-- Category: Code Structure & Architecture
-- Location:
-  - [src/modules/menu/hooks/useAddMenuItem.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/menu/hooks/useAddMenuItem.ts#L1)
-
-#### What is wrong
-
-`useAddMenuItem` is present but not referenced anywhere in the codebase.
-
-#### Why it matters
-
-- Increases maintenance cost
-- Duplicates behavior already covered by `useAddMenuLogic`
-
-#### Possible fix
-
-Delete it after consolidating category logic.
-
----
-
-### 5.4 `ScreenWrapper` has an unused `onPress` prop and unused style entries
-
-- Severity: Low
-- Category: Code Structure & Architecture
-- Location:
-  - [src/shared/components/ScreenWrapper.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/shared/components/ScreenWrapper.tsx#L7)
-  - [src/modules/auth/screens/OtpVerificationScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/screens/OtpVerificationScreen.tsx#L25)
-  - [src/modules/auth/screens/ResetPasswordScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/screens/ResetPasswordScreen.tsx#L15)
-
-#### What is wrong
-
-- `ScreenWrapperProps` defines `onPress`, but the component never uses it
-- `OtpVerificationScreen` and `ResetPasswordScreen` pass `onPress={Keyboard.dismiss}` expecting wrapper-level behavior
-- `star` and `star7` style blocks are unused
-
-#### Why it matters
-
-- Component API is misleading
-- Keyboard-dismiss intent in screens is not actually implemented
-
-#### Possible fix
-
-Either:
-
-1. Implement a pressable outer wrapper, or
-2. Remove `onPress` from the shared API and dismiss keyboards explicitly in callers
-
-Also remove unused styles.
-
----
-
-### 5.5 `handleInputChange` is returned from `useEditProfile` but not used
-
-- Severity: Low
-- Category: Code Structure & Architecture
-- Location:
-  - [src/modules/profile/hooks/userEditProfile.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/hooks/userEditProfile.ts#L48)
-  - [src/modules/profile/hooks/userEditProfile.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/profile/hooks/userEditProfile.ts#L92)
-
-#### What is wrong
-
-The hook defines and returns `handleInputChange`, but `EditProfileScreen` uses Formik state setters instead.
-
-#### Why it matters
-
-- Small but misleading dead API surface
-
-#### Possible fix
-
-Remove `handleInputChange` from the hook unless you intend to stop using Formik there.
-
----
-
-## 6. Additional Proven Issues
-
-### 6.1 Login screen renders `Constants.BASE_URL` in the UI
-
-- Severity: Low
-- Category: Styling & UI Consistency
-- Location:
-  - [src/modules/auth/screens/LoginScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/screens/LoginScreen.tsx#L23)
-
-#### What is wrong
-
-The login title renders:
-
-```ts
-Welcome Back! {Constants.BASE_URL}
-```
-
-#### Why it matters
-
-- Exposes environment configuration directly in user-facing UI
-- Looks like debug leakage rather than intentional product copy
-
-#### Possible fix
-
-Replace with a static heading:
-
-```ts
-<Text style={styles.title}>Welcome Back!</Text>
-```
-
----
-
-### 6.2 `Signup` hook accepts `navigation` but does not use it
-
-- Severity: Low
-- Category: Code Structure & Architecture
-- Location:
-  - [src/modules/auth/hooks/useSignup.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useSignup.ts#L8)
-
-#### What is wrong
-
-`useSignup` takes a `navigation` argument but navigates through the shared helper instead.
-
-#### Why it matters
-
-- Unused parameters are a maintenance smell
-- Suggests partially migrated navigation style
-
-#### Possible fix
-
-Remove the argument and update the caller:
-
-```ts
-const { handleSignup, validate, initialValues, isLoading } = useSignup();
-```
-
----
-
-### 6.3 `HomeScreen` is currently static and does not reflect real app state
-
-- Severity: Low
-- Category: Code Structure & Architecture
+- Status: Confirmed
 - Location:
   - [src/modules/home/screens/HomeScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/home/screens/HomeScreen.tsx#L24)
+  - [src/modules/home/screens/HomeScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/home/screens/HomeScreen.tsx#L27)
+  - [src/modules/home/screens/HomeScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/home/screens/HomeScreen.tsx#L81)
 
-#### What is wrong
+#### Problem
 
-The screen is built on mock data:
+The dashboard still hardcodes online status, route progress, earnings, delivery counts, and upcoming orders. The UI looks finished, but it does not reflect real vendor state.
 
-- hardcoded online/offline state
-- hardcoded upcoming orders
-- hardcoded route progress and earnings
+That is risky because it can mislead QA and product review into believing core dashboard behaviors already exist.
 
-#### Why it matters
+#### Possible Fix
 
-- The screen architecture is not yet connected to the rest of the app data layer
-- This is not necessarily wrong if intentional, but it should be treated as placeholder UI
+Recommended sequence:
 
-#### Tradeoff
+1. Define the required dashboard data contract.
+2. Replace hardcoded values with queries/selectors.
+3. Add loading, empty, and error states.
+4. Keep any mock cards behind an explicit development flag if design placeholders are still needed.
 
-This looks intentional rather than accidental. It is acceptable as staging UI if the team knows it is a stub.
+#### Validation After Fix
 
-#### Possible next step
+- Compare the dashboard against live API data for at least one vendor account
+- Confirm the online/offline toggle persists to backend or local store as intended
 
-Document it as placeholder, or connect it to:
+### 7. Duplicated and unused infrastructure is still in the tree
 
-- `activeOrders`
-- active route query
-- vendor status endpoint/store
+- Severity: Low
+- Status: Confirmed
+- Location:
+  - [src/config/NotificationsContext.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/config/NotificationsContext.tsx#L36)
+  - [src/store/useNotificationStore.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/useNotificationStore.ts#L17)
+  - [src/navigation/RootNavigation.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/navigation/RootNavigation.ts)
+  - [src/modules/auth/hooks/useSignup.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useSignup.ts#L8)
 
----
+#### Problem
 
-## Categories With No Proven Issues
+- There are two notification state implementations doing the same registration/listener work.
+- `NotificationProvider` appears orphaned in the current tree.
+- `RootNavigation.ts` is still an empty file.
+- `useSignup` still accepts `navigation` but does not use it.
 
-### No issues found
+These are not release blockers, but they slow maintenance and make it harder to tell which path is authoritative.
 
-- Circular dependencies
-- FlatList missing keys
-- Missing basic cleanup for OTP timer and interval logic
-- Missing camera/gallery permission checks before invoking those features
+#### Possible Fix
 
----
+Recommended sequence:
 
-## Recommended Implementation Plan
+1. Choose one notification state pattern: context or Zustand.
+2. Remove the unused implementation and its duplicate logging.
+3. Delete `RootNavigation.ts` if it has no planned use.
+4. Drop the unused `navigation` parameter from `useSignup`.
 
-### Phase 1: Same-day fixes
+#### Validation After Fix
 
-1. Fix auth persistence in `useLogin`
-2. Fix `CameraScreen` return behavior
-3. Remove `Constants.BASE_URL` from login UI
-4. Remove unconditional sensitive logs
-5. Delete empty and unused files/hooks
+- Search again for `NotificationProvider`, `useNotificationStore`, and `RootNavigation`
+- Confirm only one notification bootstrap path remains
 
-### Phase 2: 1 to 3 day cleanup
+### 8. Weakly typed boundaries are still widespread in navigation and services
 
-1. Remove global cleartext networking flags
-2. Encrypt persisted auth token storage
-3. Add `useCategories` and remove duplicated category fetch code
-4. Make orders tab queries conditional
-5. Normalize response parsing inside services
+- Severity: Low
+- Status: Confirmed
+- Location:
+  - [src/navigation/navigationRef.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/navigation/navigationRef.ts#L5)
+  - [src/modules/auth/hooks/useLogin.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useLogin.ts#L13)
+  - [src/modules/auth/hooks/useSignup.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/auth/hooks/useSignup.ts#L8)
+  - [src/modules/home/screens/HomeScreen.tsx](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/home/screens/HomeScreen.tsx#L21)
 
-### Phase 3: Structural hardening
+#### Problem
 
-1. Type navigation params end to end
-2. Replace `any` in auth, map store, and route creation paths
-3. Split large screens like `NewRoute` and `LiveTracking` into smaller focused units
-4. Add flow tests around login, profile completion, route creation, and camera return behavior
+The project still relies on many `any`-typed route params, store selectors, form payloads, and navigation helpers. TypeScript passes because those boundaries are permissive, not because the contracts are tight.
 
----
+#### Possible Fix
 
-## Final Notes
+Recommended sequence:
 
-- This report includes only issues that are directly provable from the current code.
-- The strongest immediate ROI is in auth flow correctness and transport security.
-- The next most valuable cleanup is consolidating duplicated server-state logic so the current architecture becomes easier to extend without regressions.
+1. Type `navigationRef` with the app root param list.
+2. Replace `any` in auth hooks with concrete request/response types.
+3. Type route props for screens that already have stable params.
+4. Prioritize files on active feature paths first instead of trying to remove every `any` at once.
+
+#### Validation After Fix
+
+- Re-run `npx tsc --noEmit`
+- Confirm navigation calls fail at compile time when route names or params are wrong
+
+## Resolved Or Not Present
+
+These items were checked and are not current issues in the present code state:
+
+- Secure token persistence: the auth token is now separated from MMKV and stored through [src/store/secureStorage.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/store/secureStorage.ts)
+- Camera hardcoded redirect to `CompleteProfile`: the camera screen now confirms by going back instead of always navigating to one screen
+- Menu-card per-item query dependency issue: current [src/modules/menu/hooks/useMenuItemCard.ts](/Users/hamda/Documents/projects/rn/teaboi/teaboi-vendor-app/src/modules/menu/hooks/useMenuItemCard.ts) is local optimistic state and no longer creates a fetch dependency per card
+
+## Recommended Next Action
+
+Start with issue 1 and issue 2 together. They are the two remaining flow bugs most likely to break normal vendor onboarding and profile maintenance even when the backend is healthy.

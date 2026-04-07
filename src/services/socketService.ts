@@ -11,8 +11,6 @@ class SocketService {
       console.warn('Cannot connect to socket without token');
       return;
     }
-     console.log(token,"tootototo");
-
     if (!this.socket) {
       this.socket = io(`${Constants.BASE_URL}/tracking`, {
         auth: {
