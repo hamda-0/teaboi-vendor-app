@@ -15,6 +15,8 @@ import * as Location from 'expo-location';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { VendorRouteDetails } from '../services/routeService';
 import { socketService } from '@/services/socketService';
+import { trackingService } from '@/services/TrackingService';
+import { useTrackingStore } from '@/store/useTrackingStore';
 import { ScreenWrapper } from '@/shared/components/ScreenWrapper';
 import { Constants } from '@/config/constants';
 
@@ -27,6 +29,9 @@ type LiveTrackingParams = {
 export const LiveTrackingScreen = () => {
   const route = useRoute<RouteProp<LiveTrackingParams, 'LiveTracking'>>();
   const { routeData } = route.params;
+
+  const storeLocation = useTrackingStore(state => state.currentLocation);
+  const isTracking = useTrackingStore(state => state.isTracking);
 
   const [currentLocation, setCurrentLocation] = useState<{ lat: number, lng: number } | null>(null);
   const mapRef = useRef<MapView>(null);
@@ -41,71 +46,31 @@ export const LiveTrackingScreen = () => {
   const [isLive, setIsLive] = useState(true);
 
   useEffect(() => {
-    let locationSubscription: Location.LocationSubscription | null = null;
-    
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is strictly required to track your route.');
-        return;
+    if (storeLocation) {
+      setCurrentLocation(storeLocation);
+      
+      if (mapRef.current && isLive) {
+        mapRef.current.animateToRegion({
+          latitude: storeLocation.lat,
+          longitude: storeLocation.lng,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 1000);
       }
+    }
+  }, [storeLocation, isLive]);
 
-      // Initial focus
-      let initLocation = await Location.getCurrentPositionAsync({});
-      setRegion({
-        ...region,
-        latitude: initLocation.coords.latitude,
-        longitude: initLocation.coords.longitude,
-      });
-      setCurrentLocation({
-        lat: initLocation.coords.latitude,
-        lng: initLocation.coords.longitude
-      });
-
-      // Socket Connect & Listen
-      // socketService.connect();
-      // if (routeData.id) {
-      //   socketService.startRoute(routeData.id);
-      // }
-
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 3000,
-          distanceInterval: 5,
-        },
-        (loc) => {
-          const lat = loc.coords.latitude;
-          const lng = loc.coords.longitude;
-          
-          setCurrentLocation({ lat, lng });
-          
-          if (mapRef.current) {
-            mapRef.current.animateToRegion({
-              latitude: lat,
-              longitude: lng,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }, 1000);
-          }
-
-          // Emit location update if needed
-          if (routeData.id && isLive) {
-            console.log("llll");
-            
-            socketService.updateLocation(lat, lng);
-          }
-        }
-      );
-    })();
+  useEffect(() => {
+    if (!isTracking || (trackingService.getActiveRoute()?.id !== routeData.id)) {
+      trackingService.startTracking(routeData);
+    }
 
     return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-      socketService.disconnect();
+      // NOTE: We NO LONGER disconnect the socket here.
+      // The tracking continues in the background via TrackingService.
+      console.log('[LiveTrackingScreen] Unmounting, tracking continues...');
     };
-  }, [routeData]);
+  }, [routeData.id]);
 
   const handleEndRoute = () => {
     Alert.alert(
@@ -122,7 +87,7 @@ export const LiveTrackingScreen = () => {
               Alert.alert('Error', 'Route ID is required to end the route');
               return;
             }
-            socketService.endRoute(routeData.id);
+            trackingService.stopTracking();
             goBack();
           }
         }

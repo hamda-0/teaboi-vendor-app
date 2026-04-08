@@ -15,6 +15,7 @@ import { useCancelRoute } from '../hooks/useCancelRoute';
 import { ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { VendorRouteDetails } from '../services/routeService';
 import { socketService } from '@/services/socketService';
+import { trackingService } from '@/services/TrackingService';
 
 
 
@@ -188,13 +189,9 @@ export const RoutesScreen = () => {
                   {route.status?.toUpperCase() === 'APPROVED' || route.status?.toUpperCase() === 'INCOMPLETE' || route.status?.toUpperCase() === 'ACTIVE' ? (
                     <TouchableOpacity
                     onPress={() => {
-                      // console.log('Starting route:', route.name);
-                      socketService.connect();
-                      socketService.startRoute(route.id)
+                      // Use the global TrackingService to start tracking
+                      trackingService.startTracking(route);
                       navigate('LiveTracking', { routeData: route });
-                      // socketService.subscribeRoute(route._id || route.id);
-                      // Alert.alert('Route Started', `Connected to route: ${route.name}`);
-                      // Here you can navigate to the Live Tracking map screen
                     }}
                     style={[styles.premiumButton, styles.startButton]}>
                       <Ionicons name={route.status?.toUpperCase() === 'ACTIVE' ? "map" : "play"} size={18} color="white" />
