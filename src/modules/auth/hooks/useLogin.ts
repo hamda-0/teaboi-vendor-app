@@ -40,14 +40,42 @@ export const useLogin = () => {
         setAuth(user, accessToken);
     },
     onError: (err: any, values) => {
-      console.log('Login Error Status:', err.statusCode);
       console.log('Login Error:', err);
-      
-      if (err.statusCode === 403) {
-        navigate('OtpVerification', { email: values.email });
-        return;
+
+      const status = err?.status;
+
+      switch (status) {
+        case 'pending_verification':
+          // Email registered but not verified yet
+          navigate('OtpVerification', { email: values.email });
+          return;
+
+        case 'pending_approval':
+          // Profile complete, waiting for admin review
+          Alert.alert(
+            'Pending Approval',
+            'Your vendor account is under review. You will be notified once approved.'
+          );
+          return;
+
+        case 'suspended':
+          Alert.alert(
+            'Account Suspended',
+            'Your account has been suspended. Please contact support for assistance.'
+          );
+          return;
+
+        case 'banned':
+          Alert.alert(
+            'Account Banned',
+            'Your account has been banned. Please contact support for more information.'
+          );
+          return;
+
+        default:
+          // Fallback for unknown errors
+          Alert.alert('Login Failed', err?.error || 'Invalid email or password.');
       }
-      Alert.alert('Login Failed', err.error || 'Invalid email or password.');
     },
   });
 

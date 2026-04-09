@@ -14,6 +14,12 @@ export enum AccountStatus {
   DEACTIVATED = 'deactivated',
 }
 
+export type AuthErrorStatus =
+  | 'pending_verification'
+  | 'suspended'
+  | 'banned'
+  | 'pending_approval';
+
 export interface VendorProfile {
   approvalStatus: 'pending' | 'approved' | 'rejected';
   isProfileComplete: boolean;
