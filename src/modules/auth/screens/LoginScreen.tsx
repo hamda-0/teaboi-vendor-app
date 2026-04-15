@@ -21,7 +21,7 @@ export const LoginScreen = ({ navigation }: { navigation: any }) => {
   return (
     <ScreenWrapper scroll style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Welcome Back! {Constants.BASE_URL}</Text>
+        <Text style={styles.title}>Welcome Back!</Text>
         <Text style={styles.subtitle}>Sign in to continue your tea journey.</Text>
       </View>
 

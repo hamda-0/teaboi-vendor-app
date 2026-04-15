@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { Constants } from '@/config/constants';
 import { useAuthStore } from '@store/useAuthStore';
+import { Alert } from 'react-native';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -54,11 +55,12 @@ class SocketService {
   }
 
   // ── Vendor Events ──────────────────────────────
-
+// apply logs on startRoute and updateRoute for texting pupose use alert
   startRoute(routeId: string) {
     const socket = this.getSocket();
     if (socket) {
       socket.emit('startRoute', { routeId }); 
+      Alert.alert('Route started', `Route ${routeId} started`);
     }
   }
 
@@ -66,6 +68,7 @@ class SocketService {
     const socket = this.getSocket();
     if (socket) {
       socket.emit('updateLocation', { lat, lng });
+      Alert.alert('Location updated', `Location ${lat}, ${lng} updated`);
     }
   }
 

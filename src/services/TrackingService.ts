@@ -10,25 +10,37 @@ let locationSubscription: Location.LocationSubscription | null = null;
 export const trackingService = {
   async startTracking(route: VendorRouteDetails) {
     try {
-      // 1. Request Permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Location permission is strictly required to track your route.');
         return;
       }
 
-      // 2. Connect Socket (Ensures socket is ON)
       socketService.connect();
       
-      if (route.status?.toUpperCase() !== 'ACTIVE') {
-        socketService.startRoute(route.id);
-      } else {
-        console.log(`[TrackingService] Route ${route.id} is already active, skipping startRoute emit`);
+      const currentActiveRoute = useTrackingStore.getState().activeRoute;
+      const isCurrentlyTracking = useTrackingStore.getState().isTracking;
+
+      // Only emit startRoute if we aren't already tracking THIS route
+      if (!isCurrentlyTracking || currentActiveRoute?.id !== route.id) {
+        if (route.status?.toUpperCase() !== 'ACTIVE') {
+          socketService.startRoute(route.id);
+        } else {
+          console.log(`[TrackingService] Route ${route.id} is already active on server, skipping startRoute emit`);
+        }
+      } else if (isCurrentlyTracking && currentActiveRoute?.id === route.id) {
+        console.log(`[TrackingService] Already tracking route ${route.id}, skipping redundant start logic`);
+        return; 
       }
 
       // 4. Update Store
       useTrackingStore.getState().setActiveRoute(route);
       useTrackingStore.getState().setTracking(true);
+
+      const initialLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      useTrackingStore.getState().updateLocation(initialLocation.coords.latitude, initialLocation.coords.longitude);
 
       // 5. Start Watching Position
       if (locationSubscription) {
@@ -38,16 +50,16 @@ export const trackingService = {
       locationSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          timeInterval: 5000, // Every 5 seconds
-          distanceInterval: 10, // Or every 10 meters
+          timeInterval: 5000,
+          distanceInterval: 10, 
         },
         (location) => {
           const { latitude, longitude } = location.coords;
           
-          // Update Store
+          // Update 
           useTrackingStore.getState().updateLocation(latitude, longitude);
 
-          // Emit to Socket
+          // Emit
           socketService.updateLocation(latitude, longitude);
           console.log(`[TrackingService] Emitted location: ${latitude}, ${longitude}`);
         }
@@ -67,16 +79,11 @@ export const trackingService = {
       if (activeRoute) {
         socketService.endRoute(activeRoute.id);
       }
-
-      // Stop location updates
       if (locationSubscription) {
         locationSubscription.remove();
         locationSubscription = null;
       }
-
-      // Reset Store
       useTrackingStore.getState().reset();
-      
       console.log('[TrackingService] Stopped tracking');
     } catch (error: any) {
       console.error('[TrackingService] Error stopping tracking:', error);

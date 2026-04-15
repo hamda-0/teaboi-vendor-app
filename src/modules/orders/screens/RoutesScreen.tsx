@@ -34,6 +34,9 @@ export const RoutesScreen = () => {
       case 'REJECT':
       case 'REJECTED':
         return { bg: '#FEE2E2', text: '#991B1B', label: 'REJECTED' };
+      case 'CANCELLED':
+      case 'CANCEL':
+        return { bg: '#FEE2E2', text: '#EF4444', label: 'CANCELLED' };
       default:
         return { bg: '#F3F4F6', text: '#6B7280', label: status?.toUpperCase() || 'UNKNOWN' };
     }
@@ -186,7 +189,15 @@ export const RoutesScreen = () => {
                 {/* Actions Section */}
                 <View style={styles.actionsDivider} />
                 <View style={styles.actionsRow}>
-                  {route.status?.toUpperCase() === 'APPROVED' || route.status?.toUpperCase() === 'INCOMPLETE' || route.status?.toUpperCase() === 'ACTIVE' ? (
+                  {route.status?.toUpperCase() === 'CANCELLED' || route.status?.toUpperCase() === 'CANCEL' ? (
+                    <TouchableOpacity 
+                      style={[styles.premiumButton, styles.disabledMainButton]} 
+                      disabled={true}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                      <Text style={[styles.premiumButtonText, { color: '#94A3B8' }]}>Cancelled</Text>
+                    </TouchableOpacity>
+                  ) : route.status?.toUpperCase() === 'APPROVED' || route.status?.toUpperCase() === 'INCOMPLETE' || route.status?.toUpperCase() === 'ACTIVE' ? (
                     <TouchableOpacity
                     onPress={() => {
                       // Use the global TrackingService to start tracking
@@ -210,14 +221,21 @@ export const RoutesScreen = () => {
                   ) : null}
 
                   <TouchableOpacity 
-                    style={styles.cancelIconButton} 
+                    style={[
+                      styles.cancelIconButton,
+                      (route.status?.toUpperCase() === 'CANCELLED' || route.status?.toUpperCase() === 'CANCEL') && styles.disabledCancelButton
+                    ]} 
                     onPress={() => handleCancelPress(route)}
-                    disabled={isCancelling}
+                    disabled={isCancelling || route.status?.toUpperCase() === 'CANCELLED' || route.status?.toUpperCase() === 'CANCEL'}
                   >
                     {isCancelling ? (
                       <ActivityIndicator size="small" color="#EF4444" />
                     ) : (
-                      <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                      <Ionicons 
+                        name="trash-outline" 
+                        size={20} 
+                        color={route.status?.toUpperCase() === 'CANCELLED' || route.status?.toUpperCase() === 'CANCEL' ? "#CBD5E1" : "#EF4444"} 
+                      />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -392,6 +410,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
+  disabledMainButton: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
   premiumButtonText: {
     fontSize: 15,
     fontWeight: '700',
@@ -406,6 +429,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#FECACA',
+  },
+  disabledCancelButton: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#F1F5F9',
   },
 
   fab: {

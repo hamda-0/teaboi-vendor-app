@@ -1,6 +1,7 @@
 import apiClient from '@/api/client';
 import { ENDPOINTS } from '@/api/endpoints';
 import { ApiResponse } from '@/types/api';
+import { Alert } from 'react-native';
 
 export interface RoutePoint {
   lat: number;
@@ -44,7 +45,11 @@ export interface CreateRouteRequest {
 }
 export const routeService = {
   createRoute: async (data: CreateRouteRequest) => {
-    return apiClient.post(ENDPOINTS.VENDOR_ROUTES.CREATE, data);
+    // Alert.alert('Create Route Request', JSON.stringify(data, null, 2));
+    const response = await apiClient.post(ENDPOINTS.VENDOR_ROUTES.CREATE, data);
+    console.log('Create Route Response:', JSON.stringify(response, null, 2));
+    // Alert.alert('Create Route Response', JSON.stringify(response, null, 2));//todo
+    return response;
   },
   getAllRoutes: async (page = 1, limit = 10) => {
     return apiClient.get(ENDPOINTS.VENDOR_ROUTES.ALL, {

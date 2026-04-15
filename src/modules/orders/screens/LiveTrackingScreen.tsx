@@ -36,11 +36,24 @@ export const LiveTrackingScreen = () => {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number, lng: number } | null>(null);
   const mapRef = useRef<MapView>(null);
   
-  const [region, setRegion] = useState({
-    latitude: 24.8607,
-    longitude: 67.0011,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
+  const [region, setRegion] = useState(() => {
+    const path = routeData.routePath;
+    if (path && path.length > 0) {
+      const lat = Array.isArray(path[0]) ? path[0][0] : (path[0] as any).lat;
+      const lng = Array.isArray(path[0]) ? path[0][1] : (path[0] as any).lng;
+      return {
+        latitude: lat,
+        longitude: lng,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      };
+    }
+    return {
+      latitude: 24.8607,
+      longitude: 67.0011,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    };
   });
 
   const [isLive, setIsLive] = useState(true);
@@ -143,12 +156,12 @@ export const LiveTrackingScreen = () => {
     return (
       <View>
         <Marker 
-          coordinate={{ latitude: path[0][0], longitude: path[0][1] }} 
+          coordinate={formatCoord(path[0])!} 
           pinColor="green" 
           title="Start" 
         />
         <Marker 
-          coordinate={{ latitude: path[path.length-1][0], longitude: path[path.length-1][1] }} 
+          coordinate={formatCoord(path[path.length-1])!} 
           pinColor="red" 
           title="End" 
         />
@@ -184,7 +197,11 @@ export const LiveTrackingScreen = () => {
           ref={mapRef}
           style={styles.map}
           initialRegion={region}
-          showsUserLocation={false} 
+          showsUserLocation={true} 
+          showsMyLocationButton={true}
+          zoomEnabled={true}
+          scrollEnabled={true}
+          zoomControlEnabled={true}
         >
           {getPath()}
           {getPolygons()}
