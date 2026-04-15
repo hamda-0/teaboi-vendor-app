@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 import { theme } from "../../../theme";
+import pixelPerfect from "../../../utils/pixelPerfect";
 
 export const styles = StyleSheet.create({
   container: {
@@ -21,7 +22,7 @@ export const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     borderRadius: 12,
     paddingHorizontal: theme.spacing.m,
-    height: 56,
+    height: pixelPerfect(56),
   },
   input: {
     flex: 1,

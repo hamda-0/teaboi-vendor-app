@@ -84,16 +84,16 @@ export const SignupScreen = ({ navigation }: { navigation: any }) => {
         <GoogleSigninButton
           style={{height: 48 }}
           size={GoogleSigninButton.Size.Icon}
-          // color={GoogleSigninButton.Color.Dark}
+          color={GoogleSigninButton.Color.Dark}
           onPress={startGoogleSignInFlow}
           disabled={isSocialLoading}
         />
         
-        <TouchableOpacity onPress={()=>{
+        {/* <TouchableOpacity onPress={()=>{
           startAppleSignInFlow()
         }}>
            <Text>apple auth test</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <View style={styles.footer}>
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: theme.spacing.xxl,
+    marginTop: 12,
   },
   footerText: {
     ...theme.typography.body,

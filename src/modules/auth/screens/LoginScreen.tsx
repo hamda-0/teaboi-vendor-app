@@ -31,7 +31,7 @@ export const LoginScreen = ({ navigation }: { navigation: any }) => {
         onSubmit={handleLogin}
       >
         {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-          <View style={styles.form}>
+          <View>
             <Input
               label="Email Address"
               placeholder="hello@teaboi.com"
@@ -117,9 +117,6 @@ const styles = StyleSheet.create({
   subtitle: {
     ...theme.typography.body,
     color: theme.colors.text.secondary,
-  },
-  form: {
-    flex: 1,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
